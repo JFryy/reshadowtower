@@ -1,5 +1,7 @@
 # ReShadowTower
 
+<img src="docs/images/shadow-tower-cover.png" alt="Shadow Tower USA PlayStation cover art" width="320">
+
 An experimental Shadow Tower recompilation for Linux and Windows x64.
 Mouse look, WASD, upscaled rendering, and sharper texture filtering.
 
@@ -258,4 +260,6 @@ This unofficial FromSoftware fan project uses:
 
 Retain applicable dependency licenses and notices when distributing permitted
 material. The MIT license grants no rights to Shadow Tower's game code, artwork,
-audio, or other assets. No retail game files are included in this repository.
+audio, or other assets. The cover artwork belongs to its respective rights
+holders and is not covered by the project's MIT license. No disc dumps or
+extracted game code are included in this repository.
