@@ -1,0 +1,32 @@
+name: Asset-free tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    timeout-minutes: 20
+    steps:
+      - name: Install build and graphics test dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git cmake ninja gcc python python-opengl sdl3 mesa \
+            xorg-server-xvfb xorg-xauth
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Check shell syntax
+        run: bash -n scripts/build.sh scripts/run.sh
+      - name: Run tests with required software OpenGL coverage
+        env:
+          SDL_VIDEODRIVER: x11
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: xvfb-run -a python3 tools/run_tests.py

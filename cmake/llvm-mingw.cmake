@@ -1,0 +1,20 @@
+# Linux -> Windows x86-64. Generate game/BIOS C with the Linux tools first.
+# Supply a complete llvm-mingw distribution via LLVM_MINGW_ROOT (environment).
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR x86_64)
+
+file(TO_CMAKE_PATH "$ENV{LLVM_MINGW_ROOT}" _llvm_mingw_root)
+if(NOT EXISTS "${_llvm_mingw_root}/bin/x86_64-w64-mingw32-clang")
+    message(FATAL_ERROR "Set LLVM_MINGW_ROOT to an extracted Linux-host llvm-mingw toolchain.")
+endif()
+set(CMAKE_C_COMPILER "${_llvm_mingw_root}/bin/x86_64-w64-mingw32-clang")
+set(CMAKE_CXX_COMPILER "${_llvm_mingw_root}/bin/x86_64-w64-mingw32-clang++")
+set(CMAKE_RC_COMPILER "${_llvm_mingw_root}/bin/x86_64-w64-mingw32-windres")
+set(CMAKE_AR "${_llvm_mingw_root}/bin/llvm-ar")
+set(CMAKE_RANLIB "${_llvm_mingw_root}/bin/llvm-ranlib")
+set(CMAKE_STRIP "${_llvm_mingw_root}/bin/llvm-strip")
+set(CMAKE_FIND_ROOT_PATH "${_llvm_mingw_root}/x86_64-w64-mingw32")
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)

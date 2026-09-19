@@ -1,0 +1,67 @@
+# Shadow Tower USA disc identity, code generation, and runtime defaults.
+
+[game]
+name = "NativeShadowTower"
+id = "SLUS-00863"
+players = 1
+exe = "disc/SLUS_008.63"
+disc = "disc/Shadow Tower (USA).cue"
+load_address = "0x80010000"
+entry_pc = "0x800101C0"
+text_size = "0x00000800"
+stack_base = "0x801FFFF0"
+
+# Digests are for data Track 01 (first BINARY FILE / TRACK 01).
+[prepare_disc]
+out_dir = "disc"
+bin_name = "Shadow Tower (USA).bin"
+cue_name = "Shadow Tower (USA).cue"
+boot_exe = "SLUS_008.63"
+known_sizes = [488105856]
+known_md5 = [
+  "43a13b3c105761bd11d1b700f00e778d",
+]
+known_sha1 = [
+  "df441bf08b7079f8b3d36f1188f7eedd8cb73c50",
+]
+known_crc32 = [
+  "6bc061de",
+]
+
+[recompiler]
+seeds = "seeds/ghidra_funcs.txt"
+out_dir = "generated"
+strict = true
+# Preserve direct mouse look when the gameplay routine executes natively.
+mod_function_entry_funcs = ["0x80041D4C"]
+
+[runtime]
+window_title = "NativeShadowTower Recompiled"
+memcard_dir = "saves"
+
+[video]
+renderer = "opengl"
+# Keep the original 4:3 composition and render above native resolution.
+supersampling = 3
+window_width = 1280
+aspect_ratio = "4:3"
+# The title-local OpenGL renderer uses this switch for selective world filtering:
+# sharp magnification and bounded directional minification, not global blur.
+# "nearest" disables it. Sprites, raw textures and transparent effects stay native.
+texture_filtering = "bilinear"
+antialiasing = false
+# Keep validated subpixel positions across the full native pixel. The previous
+# 0.5 cutoff rejected most available corrections and left floor coverage cracks.
+geometry_correction = true
+perspective_texturing = true
+pgxp_tolerance = 1.0
+
+[controller]
+default_mode = "digital"
+
+# Disc identity checks for the framework's optional netplay support.
+# See psxrecomp/docs/NETPLAY.md.
+[netplay]
+require_cue = true
+required_tracks = 1
+required_disc_fp = "0e33bcd84804ee24edd0beb77437050c3f5674aef9beb0419ca6303503372bbe"
