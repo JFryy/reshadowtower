@@ -10,25 +10,18 @@ Mouse look, WASD, upscaled rendering, and sharper texture filtering.
 Requires your own **Shadow Tower (USA), SLUS-00863** BIN/CUE dump.
 No retail BIOS needed. OpenBIOS is included in the build.
 
-## Status and limitations
-
-- **Linux x64:** prior builds were gameplay-tested on Arch Linux. The current
-  debug-disabled player build has been rebuilt and headless-startup-tested with
-  isolated saves and no open sockets; manual gameplay revalidation is pending.
-- **Windows x64:** cross-compiled on Linux and smoke-tested under Wine. Earlier tests
-  verified gameplay rendering, injected turning input, and save-state save/load.
-  The current debug-disabled build passed OpenGL startup and clean exit under
-  Wine, with no debug listener. Native MSYS2 builds and gameplay on real Windows
-  still need verification.
-- **Source builds only:** no verified portable release packages. Build from your
-  own disc; do not redistribute generated game code or local game assets.
-- A full playthrough has not been verified. Geometry seam correction was checked
-  in selected scenes, not throughout the game. Back up normal memory-card saves.
-- No widescreen mode or frame-rate unlock. Gameplay retains roughly 20 updates
-  per second; higher rendering resolution does not change this.
 
 ## Setup
 
+### Supply the disc and build
+
+The [`disc/`](disc/README.md) directory is included. Put your dump here:
+
+```text
+disc/Shadow Tower (USA).bin
+disc/Shadow Tower (USA).cue
+
+```
 ### Linux
 
 Install Git, Python 3.11+, CMake 3.20+, Ninja, pkg-config, GCC/G++ with C++20
@@ -90,14 +83,6 @@ this from the repository root before building:
 git submodule update --init --recursive
 ```
 
-### Supply the disc and build
-
-The [`disc/`](disc/README.md) directory is included. Put your dump here:
-
-```text
-disc/Shadow Tower (USA).bin
-disc/Shadow Tower (USA).cue
-```
 
 The CUE's `FILE` entry must match the BIN filename. Other regions are not supported.
 The build extracts the executable automatically.
@@ -221,14 +206,6 @@ a C compiler, SDL3, and PyOpenGL, then run:
 python3 tools/run_tests.py
 ```
 
-The runner fails if any test is skipped, including when OpenGL 3.3 is unavailable.
-CI uses Mesa software OpenGL under Xvfb; it does not build or test the retail game.
-On Arch, install the additional test dependencies with:
-
-```bash
-sudo pacman -Syu --needed python-opengl mesa xorg-server-xvfb xorg-xauth
-```
-
 For a headless test run:
 
 ```bash
@@ -245,11 +222,6 @@ cmake --build build-release --target psx-runtime -j4
 Running `./scripts/build.sh` again restores the player default (`OFF`).
 
 ## License and credits
-
-Original ReShadowTower contributions are licensed under [MIT](LICENSE),
-Copyright (c) 2026 JFryy. This does not relicense third-party code, adaptations of
-that code, or material generated from the game.
-
 This unofficial FromSoftware fan project uses:
 
 - [PSXRecomp](https://github.com/mstan/psxrecomp), under its
@@ -258,8 +230,3 @@ This unofficial FromSoftware fan project uses:
 - [OpenBIOS](https://github.com/mstan/psxrecomp/blob/ed55299be34710a90fc080484a83e8634bd41fa9/bios/OpenBIOS.LICENSE),
   under MIT and its accompanying third-party notices.
 
-Retain applicable dependency licenses and notices when distributing permitted
-material. The MIT license grants no rights to Shadow Tower's game code, artwork,
-audio, or other assets. The cover artwork belongs to its respective rights
-holders and is not covered by the project's MIT license. No disc dumps or
-extracted game code are included in this repository.
