@@ -13,7 +13,7 @@ class SourceAdapterTests(unittest.TestCase):
     def test_title_patches_apply_to_pinned_sources(self):
         for name in ("runtime-input", "runtime-graphics", "setup-host", "setup-ui"):
             with self.subTest(patch=name):
-                text = (ROOT / "patches" / f"{name}.patch").read_text()
+                text = (ROOT / "patches" / f"{name}.patch").read_text(encoding="utf-8")
                 source = (ROOT / text.splitlines()[1].removeprefix("--- a/")).read_text(encoding="utf-8-sig")
                 self.assertNotEqual(apply_patch(source, text), source)
 
