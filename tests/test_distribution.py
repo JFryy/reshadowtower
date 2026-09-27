@@ -32,7 +32,7 @@ class DistributionTests(unittest.TestCase):
             sdl.mkdir()
             (sdl / "libSDL3.a").write_bytes(b"static SDL")
             metadata["sdl"] = {"archive_sha256": build_bundled_sdl.SHA256,
-                               "prefix": str(sdl), "files": build_bundled_sdl.hashes(sdl)}
+                               "prefix": str(sdl.resolve()), "files": build_bundled_sdl.hashes(sdl)}
             (build / "release-build.json").write_text(json.dumps(metadata))
             args = SimpleNamespace(build=build, emitters=emitters, platform="linux-x64")
             with mock.patch.object(package_release, "source_fingerprint", return_value="changed"):
