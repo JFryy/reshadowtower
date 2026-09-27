@@ -2,12 +2,13 @@
 """Run the package's generation and rebuild steps without toolchain downloads."""
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+
+from release_common import OFFLINE_CMAKE_OPTIONS, file_hash
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,11 +22,8 @@ def command_arguments(arguments: list[str]) -> list[str]:
         del result[index:index + 2]
     if result[0] == "rebuild":
         result += ["--no-toolchain-download", "--no-pgo",
-                   "--cmake-extra=-DPSX_RECOMP_UI=OFF",
-                   "--cmake-extra=-DPSX_ENABLE_VULKAN=OFF",
-                   "--cmake-extra=-DPSX_DEBUG_TOOLS=OFF",
-                   "--cmake-extra=-DPSX_SDL3_FETCH=OFF",
-                   "--cmake-extra=-DPSX_ZLIB_FETCH=OFF"]
+                   "--cmake-extra=-DPSX_RECOMP_UI=OFF"]
+        result.extend(f"--cmake-extra={option}" for option in OFFLINE_CMAKE_OPTIONS)
     return result
 
 
@@ -55,8 +53,7 @@ def main() -> int:
             return completed.returncode
         if args[0] == "rebuild":
             executable = ROOT / "build-release" / ("Shadow_Tower_Recompiled" + suffix)
-            with executable.open("rb") as source:
-                digest = hashlib.file_digest(source, "sha256").hexdigest()
+            digest = file_hash(executable)
             temporary = ready.with_suffix(".tmp")
             temporary.write_text(digest + "\n", encoding="utf-8")
             temporary.replace(ready)

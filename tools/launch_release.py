@@ -16,6 +16,10 @@ import threading
 import traceback
 from collections.abc import Iterator
 
+# Isolated Python excludes the script directory; load only our packaged helpers.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from release_common import file_hash
+
 
 def data_directory() -> Path:
     if os.name == "nt":
@@ -28,9 +32,7 @@ def verify_payload(payload: Path, hashes: dict[str, str]) -> None:
         path = payload / name
         if not path.resolve().is_relative_to(payload.resolve()) or not path.is_file():
             raise ValueError(f"Missing or invalid package file: {name}")
-        with path.open("rb") as source:
-            actual = hashlib.file_digest(source, "sha256").hexdigest()
-        if actual != expected:
+        if file_hash(path) != expected:
             raise ValueError(f"Package file failed integrity check: {name}")
     actual_names = {p.relative_to(payload).as_posix() for p in payload.rglob("*") if p.is_file()}
     if actual_names != set(hashes):
@@ -119,8 +121,7 @@ def built_game_ready(workspace: Path) -> bool:
     executable = workspace / "build-release" / ("Shadow_Tower_Recompiled.exe" if os.name == "nt" else "Shadow_Tower_Recompiled")
     try:
         expected = (workspace / ".build-ready").read_text(encoding="utf-8").strip()
-        with executable.open("rb") as source:
-            return hashlib.file_digest(source, "sha256").hexdigest() == expected
+        return file_hash(executable) == expected
     except FileNotFoundError:
         return False
 

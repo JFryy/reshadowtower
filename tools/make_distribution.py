@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,6 +10,8 @@ import re
 import subprocess
 import sys
 import tempfile
+
+from release_common import file_hash
 
 ROOT = Path(__file__).resolve().parents[1]
 APPIMAGETOOL_URL = "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage"
@@ -20,9 +21,7 @@ INNO_SHA256 = "0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f"
 
 
 def verify_tool(path: Path, expected: str) -> None:
-    with path.open("rb") as source:
-        actual = hashlib.file_digest(source, "sha256").hexdigest()
-    if actual != expected:
+    if file_hash(path) != expected:
         raise ValueError(f"Packaging tool SHA-256 mismatch: {path}")
 
 
@@ -85,8 +84,7 @@ def main() -> int:
             make_appimage(package, output, args.tool.resolve())
         else:
             make_installer(package, output, args.tool.resolve(), version)
-        with output.open("rb") as source:
-            digest = hashlib.file_digest(source, "sha256").hexdigest()
+        digest = file_hash(output)
         output.with_name(output.name + ".sha256").write_text(f"{digest}  {output.name}\n", encoding="utf-8")
         print(output)
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:

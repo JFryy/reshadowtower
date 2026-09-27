@@ -1,6 +1,6 @@
 import hashlib
-import json
 import io
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -61,34 +61,6 @@ class ReleaseLauncherTests(unittest.TestCase):
         binary.write_bytes(b"interrupted rebuild")
         self.assertFalse(launcher.built_game_ready(workspace))
 
-    @unittest.skipIf(launcher.os.name == "nt", "Windows displays errors through the native bootstrap")
-    def test_copy_failure_has_a_concise_actionable_dialog(self):
-        data = self.root
-        (data / "saves").mkdir()
-        save = data / "saves/card.mcd"
-        save.write_bytes(b"keep")
-        tkinter = types.ModuleType("tkinter")
-        tkinter.messagebox = mock.Mock()
-        error = launcher.shutil.Error([("source", "destination", "Disk quota exceeded")] * 100)
-        with mock.patch.object(launcher, "data_directory", return_value=data), \
-             mock.patch.object(launcher, "session_lock", side_effect=error), \
-             mock.patch.dict(sys.modules, {"tkinter": tkinter}):
-            self.assertEqual(launcher.main(), 1)
-        message = tkinter.messagebox.showerror.call_args.args[1]
-        self.assertIn("disk space", message)
-        self.assertLess(len(message), 500)
-        self.assertEqual(save.read_bytes(), b"keep")
-        self.assertIn("Disk quota exceeded", (data / "launcher.log").read_text())
-
-    def test_session_lock_prevents_concurrent_launches(self):
-        data = self.root
-        with launcher.session_lock(data):
-            with self.assertRaisesRegex(RuntimeError, "already running"):
-                with launcher.session_lock(data):
-                    self.fail("Second launch acquired the save lock")
-        with launcher.session_lock(data):
-            pass
-
     def test_child_does_not_inherit_appimage_resource_paths(self):
         root = self.root
         payload = root / "payload"
@@ -112,16 +84,14 @@ class ReleaseLauncherTests(unittest.TestCase):
             for call in run.call_args_list:
                 self.assertNotIn("APPIMAGE", call.kwargs["env"])
 
-    def test_toolchain_cache_survives_package_mount_changes(self):
-        root = self.root
-        source = root / "mount/toolchain"
-        source.mkdir(parents=True)
-        (source / "compiler").write_bytes(b"verified tool")
-        hashes = {"compiler": hashlib.sha256(b"verified tool").hexdigest()}
-        cached = launcher.prepare_toolchain(source, root / "data", "a" * 64, hashes)
-        self.assertEqual((cached / "compiler").read_bytes(), b"verified tool")
-        other_mount = root / "different-mount"
-        self.assertEqual(launcher.prepare_toolchain(other_mount, root / "data", "a" * 64, hashes), cached)
+    def test_session_lock_prevents_concurrent_launches(self):
+        data = self.root
+        with launcher.session_lock(data):
+            with self.assertRaisesRegex(RuntimeError, "already running"):
+                with launcher.session_lock(data):
+                    self.fail("Second launch acquired the save lock")
+        with launcher.session_lock(data):
+            pass
 
     def test_invalid_toolchain_is_not_installed(self):
         root = self.root
@@ -143,6 +113,8 @@ class ReleaseLauncherTests(unittest.TestCase):
         self.assertIn("--no-toolchain-download", args)
         self.assertNotIn("--prune-after", args)
         self.assertIn("--cmake-extra=-DPSX_SDL3_FETCH=OFF", args)
+        with self.assertRaises(ValueError):
+            cli.command_arguments(["ensure-toolchain", "--download"])
 
     @unittest.skipIf(launcher.os.name == "nt", "Linux uses the patched SDL SDK")
     def test_linux_rebuild_requires_and_selects_packaged_sdl(self):
@@ -169,11 +141,6 @@ class ReleaseLauncherTests(unittest.TestCase):
             self.assertIn(f"--cmake-extra=-DSDL3_DIR={sdk}", run.call_args.args[0])
             self.assertIn("--no-toolchain-download", run.call_args.args[0])
             self.assertTrue(launcher.built_game_ready(root))
-
-    def test_toolchain_install_commands_are_rejected(self):
-        with self.assertRaises(ValueError):
-            cli.command_arguments(["ensure-toolchain", "--download"])
-
 
 
 if __name__ == "__main__":

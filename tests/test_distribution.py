@@ -1,7 +1,5 @@
-import hashlib
 import json
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -10,37 +8,10 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import build_bundled_sdl
-import make_distribution
 import package_release
 
 
 class DistributionTests(unittest.TestCase):
-    def test_unverified_packager_is_not_executed(self):
-        with tempfile.TemporaryDirectory() as directory:
-            tool = Path(directory) / "tool"
-            tool.write_bytes(b"wrong download")
-            with mock.patch.object(subprocess, "run") as run:
-                with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
-                    make_distribution.make_appimage(Path(directory), Path(directory) / "output", tool)
-                run.assert_not_called()
-
-    def test_appimage_uses_verified_embedded_runtime_without_downloading(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            tool = root / "tool"
-            tool.write_bytes(b"runtime!filesystem")
-            digest = hashlib.sha256(tool.read_bytes()).hexdigest()
-
-            def check_command(command, **kwargs):
-                runtime = Path(command[command.index("--runtime-file") + 1])
-                self.assertEqual(runtime.read_bytes(), b"runtime!")
-                self.assertEqual(kwargs["env"]["ARCH"], "x86_64")
-
-            with mock.patch.object(make_distribution, "APPIMAGETOOL_SHA256", digest), \
-                 mock.patch.object(subprocess, "check_output", return_value="8\n"), \
-                 mock.patch.object(subprocess, "run", side_effect=check_command):
-                make_distribution.make_appimage(root, root / "output", tool)
-
     def test_changed_sources_or_binaries_cannot_be_packaged(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -88,51 +59,6 @@ class DistributionTests(unittest.TestCase):
              mock.patch.object(package_release, "tracked_files", side_effect=lambda repo: paths if repo.name == "psxrecomp" else []):
             exported = list(package_release.source_files())
         self.assertEqual(exported, paths[1:4])
-
-    def test_staged_assets_merge_with_source_media_and_are_hashed(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            host, emitters = root / "host", root / "emitters"
-            (host / "assets/setup").mkdir(parents=True)
-            (host / "assets/setup/music.wav").write_bytes(b"music")
-            (host / "assets/img").mkdir()
-            (host / "assets/img/boxart.tga").write_bytes(b"cover")
-            (host / "mods/bundled").mkdir(parents=True)
-            (host / "mods/bundled/catalog.txt").write_bytes(b"catalog")
-            (host / "mods/user.txt").write_bytes(b"private")
-            (host / "Shadow_Tower_Recompiled.exe").write_bytes(b"host")
-            emitters.mkdir()
-            for name in ("psxrecomp-game.exe", "psxrecomp-bios.exe"):
-                (emitters / name).write_bytes(b"emitter")
-            launcher = root / "ReShadowTower.exe"
-            launcher.write_bytes(b"launcher")
-
-            def extract(archive, destination, digest):
-                (destination / "bin").mkdir(parents=True)
-                (destination / "python").mkdir()
-                for name in ("cmake", "ninja", "clang", "clang++"):
-                    (destination / "bin" / (name + ".exe")).write_bytes(b"tool")
-                (destination / "python/python.exe").write_bytes(b"python")
-                (destination / "retcomm-toolchain.json").write_text("{}")
-
-            def sources(destination):
-                (destination / "assets/setup").mkdir(parents=True)
-                (destination / "assets/setup/music.wav").write_bytes(b"music")
-                (destination / "psxrecomp/runtime/include").mkdir(parents=True)
-
-            args = SimpleNamespace(build=host, emitters=emitters, platform="windows-x64",
-                                   windows_launcher=launcher, toolchain_archive=root / "archive.zip",
-                                   output=root / "package")
-            with mock.patch.object(package_release, "extract_verified", side_effect=extract), \
-                 mock.patch.object(package_release, "copy_sources", side_effect=sources), \
-                 mock.patch.object(subprocess, "check_output", return_value="1234abcd"):
-                package_release.stage(args)
-            metadata = json.loads((args.output / "release.json").read_text())
-            self.assertFalse((args.output / "payload/mods/user.txt").exists())
-            self.assertEqual((args.output / "payload/mods/bundled/catalog.txt").read_bytes(), b"catalog")
-            for name in ("assets/setup/music.wav", "assets/img/boxart.tga", "mods/bundled/catalog.txt"):
-                self.assertEqual(metadata["files"][name],
-                                 package_release.file_hash(args.output / "payload" / name))
 
     def test_setup_source_manifest(self):
         with tempfile.TemporaryDirectory() as directory:

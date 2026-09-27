@@ -13,6 +13,7 @@ import sys
 import bundled_toolchain
 import build_bundled_sdl
 import package_release
+from release_common import OFFLINE_CMAKE_OPTIONS, file_hash
 
 
 def native_platform() -> str:
@@ -52,8 +53,6 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
                CC=str(cc), CXX=str(cxx))
     if target == "linux-x64":
         env["LD_LIBRARY_PATH"] = str(pack / "lib")
-
-    if target == "linux-x64":
         sdl = build_bundled_sdl.build(sdl_archive, output, pack, env)
 
     source = output / "source"
@@ -78,8 +77,7 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
     configure(source / "psxrecomp/recompiler", emitters, ["-DPSXRECOMP_STATIC_CLI=ON"])
     compile(emitters, ["psxrecomp-game", "psxrecomp-bios"])
     host = output / "host"
-    host_options = ["-DPSXRECOMP_FORCE_SETUP_HOST=ON", "-DPSX_ENABLE_VULKAN=OFF",
-                    "-DPSX_DEBUG_TOOLS=OFF", "-DPSX_SDL3_FETCH=OFF", "-DPSX_ZLIB_FETCH=OFF"]
+    host_options = ["-DPSXRECOMP_FORCE_SETUP_HOST=ON", *OFFLINE_CMAKE_OPTIONS]
     if target == "linux-x64":
         host_options.append(f"-DSDL3_DIR={sdl / 'lib/cmake/SDL3'}")
     configure(source, host, host_options)
@@ -94,7 +92,7 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
         configure(source / "packaging/windows", launcher, [])
         compile(launcher, ["ReShadowTower"])
         binaries["ReShadowTower.exe"] = launcher / "ReShadowTower.exe"
-    hashes = {name: package_release.file_hash(path) for name, path in binaries.items()}
+    hashes = {name: file_hash(path) for name, path in binaries.items()}
     if package_release.source_fingerprint() != fingerprint:
         raise ValueError("Source fingerprint changed during build; discard this output and retry")
     metadata = {"platform": target, "toolchain_sha256": bundled_toolchain.PINS[target][1],

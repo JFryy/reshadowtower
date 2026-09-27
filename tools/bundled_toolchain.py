@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 from pathlib import Path
 import re
@@ -11,6 +10,8 @@ import shutil
 import stat
 import tempfile
 import zipfile
+
+from release_common import file_hash
 
 PINS = {
     "linux-x64": (
@@ -73,11 +74,7 @@ def extract_verified(archive_path: Path, destination: Path, expected_sha256: str
     """Verify the entire zip before creating a staging directory or destination."""
     archive_path = Path(archive_path)
     destination = Path(destination)
-    digest = hashlib.sha256()
-    with archive_path.open("rb") as source:
-        for block in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(block)
-    if digest.hexdigest() != expected_sha256.lower():
+    if file_hash(archive_path) != expected_sha256.lower():
         raise ValueError("Toolchain archive SHA256 mismatch")
     if destination.exists() or destination.is_symlink():
         raise FileExistsError(destination)

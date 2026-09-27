@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import io
 import json
 from pathlib import Path
@@ -11,6 +10,8 @@ import shutil
 import subprocess
 import tarfile
 import urllib.request
+
+from release_common import file_hash, file_hashes
 
 ROOT = Path(__file__).resolve().parents[1]
 URL = "https://github.com/libsdl-org/SDL/releases/download/release-3.4.10/SDL3-3.4.10.tar.gz"
@@ -27,13 +28,13 @@ def download_inputs(directory: Path) -> None:
     inputs.extend((entry['url'], entry['sha256'], deps / Path(entry['url']).name)
                   for entry in json.loads(DEPS.read_text()).values())
     for url, digest, path in inputs:
-        if path.exists() and hashlib.sha256(path.read_bytes()).hexdigest() == digest:
+        if path.exists() and file_hash(path) == digest:
             continue
         if not url.startswith('https://'):
             raise ValueError(f'Non-HTTPS dependency: {url}')
         temporary = path.with_suffix(path.suffix + '.tmp')
         urllib.request.urlretrieve(url, temporary)
-        if hashlib.sha256(temporary.read_bytes()).hexdigest() != digest:
+        if file_hash(temporary) != digest:
             temporary.unlink()
             raise ValueError(f'SHA256 mismatch: {url}')
         temporary.replace(path)
@@ -46,7 +47,7 @@ def extract_deps(directory: Path, sdk: Path) -> None:
     for path, digest in archives:
         if not path.is_file():
             raise FileNotFoundError(f'Missing pinned SDL build input {path}; run tools/build_bundled_sdl.py --download-inputs {directory.parent}')
-        if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+        if file_hash(path) != digest:
             raise ValueError(f'SDL build input SHA256 mismatch: {path}')
     sdk.mkdir(parents=True)
     for path, _ in archives:
@@ -77,18 +78,14 @@ def extract_deps(directory: Path, sdk: Path) -> None:
 
 
 def hashes(root: Path) -> dict[str, str]:
-    result: dict[str, str] = {}
-    for path in sorted(root.rglob('*')):
+    for path in root.rglob('*'):
         if path.is_symlink():
             raise ValueError(f'Unexpected symlink in static SDL SDK: {path}')
-        if path.is_file():
-            with path.open('rb') as source:
-                result[path.relative_to(root).as_posix()] = hashlib.file_digest(source, 'sha256').hexdigest()
-    return result
+    return file_hashes(root)
 
 
 def extract(archive: Path, destination: Path) -> Path:
-    if hashlib.sha256(archive.read_bytes()).hexdigest() != SHA256:
+    if file_hash(archive) != SHA256:
         raise ValueError("SDL archive SHA256 mismatch")
     if destination.exists():
         raise FileExistsError(destination)

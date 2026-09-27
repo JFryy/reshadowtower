@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterator
 import hashlib
 import json
 import re
@@ -10,8 +11,11 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
+import build_bundled_sdl
 from bundled_toolchain import PINS, extract_verified, tool_paths
+from release_common import file_hash, file_hashes
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_FILES = (
@@ -19,6 +23,7 @@ PROJECT_FILES = (
     "codegen_setup.c", "codegen_setup.h", "cmake/graphics.cmake", "cmake/input.cmake",
     "src/modern_controls.c", "src/modern_controls.h", "src/world_texture_filter.glsl",
     "seeds/ghidra_funcs.txt", "tools/prepare_source.py", "tools/release_cli.py", "tools/generate_aot.py",
+    "tools/release_common.py",
     "cmake/adapters.cmake", "patches/runtime-input.patch", "patches/runtime-graphics.patch",
     "patches/setup-host.patch", "patches/setup-ui.patch",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",
@@ -33,9 +38,8 @@ def validate_sources(manifest: Path, project: Path) -> None:
         raise ValueError(f"Missing {manifest}; configure a setup-host build first.")
     sources = [Path(line) for line in manifest.read_text(encoding="utf-8").splitlines() if line]
     resolved = [(source if source.is_absolute() else project / source).resolve() for source in sources]
-    forbidden = (project.resolve() / "generated", project.resolve() / "psxrecomp/generated")
     for source in resolved:
-        if "generated" in source.parts or any(source.is_relative_to(root) for root in forbidden):
+        if "generated" in source.parts:
             raise ValueError(f"Setup host links generated code: {source}. Refusing packaging.")
     required = manifest.resolve().parent / "setup/psxrecomp_codegen_host.c"
     original = project.resolve() / "psxrecomp/host/psxrecomp_codegen_host.c"
@@ -45,7 +49,7 @@ def validate_sources(manifest: Path, project: Path) -> None:
         raise ValueError("Setup host is missing the first-run codegen implementation.")
 
 
-def tracked_files(repo: Path):
+def tracked_files(repo: Path) -> Iterator[Path]:
     listing = subprocess.check_output(["git", "-C", str(repo), "ls-files", "--stage", "-z"])
     for entry in listing.decode().split("\0"):
         if not entry:
@@ -61,7 +65,7 @@ def tracked_files(repo: Path):
             raise ValueError(f"Source symlink requires explicit packaging review: {path}")
 
 
-def source_files():
+def source_files() -> Iterator[Path]:
     yield from (ROOT / name for name in PROJECT_FILES)
     for module in ("psxrecomp", "recomp-ui"):
         for source in tracked_files(ROOT / module):
@@ -96,7 +100,6 @@ def source_fingerprint() -> str:
 
 
 def validate_build(args: argparse.Namespace) -> None:
-    import build_bundled_sdl
     stamp = json.loads((args.build / "release-build.json").read_text(encoding="utf-8"))
     if stamp["source_fingerprint"] != source_fingerprint():
         raise ValueError("Sources changed since the setup-host build. Run tools/build_release.py in a new output directory.")
@@ -120,14 +123,7 @@ def validate_build(args: argparse.Namespace) -> None:
             raise ValueError(f"Binary differs from the verified build: {path}")
 
 
-def file_hash(path: Path) -> str:
-    with path.open("rb") as source:
-        return hashlib.file_digest(source, "sha256").hexdigest()
-
-
 def stage(args: argparse.Namespace) -> None:
-    import tempfile
-
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".release-", dir=args.output.parent) as directory:
         staging = Path(directory) / "ReShadowTower"
@@ -142,11 +138,10 @@ def stage(args: argparse.Namespace) -> None:
         if args.platform == "linux-x64":
             sdl = json.loads((args.build / "release-build.json").read_text())["sdl"]
             shutil.copytree(sdl["prefix"], payload / "bundled-sdl")
-            from build_bundled_sdl import hashes
-            if hashes(payload / "bundled-sdl") != sdl["files"]:
+            if build_bundled_sdl.hashes(payload / "bundled-sdl") != sdl["files"]:
                 raise ValueError("Staged SDL files differ from verified build")
-        for name in ("Shadow_Tower_Recompiled" + suffix,):
-            shutil.copy2(args.build / name, payload / name)
+        executable = "Shadow_Tower_Recompiled" + suffix
+        shutil.copy2(args.build / executable, payload / executable)
         shutil.copytree(args.build / "assets", payload / "assets", dirs_exist_ok=True)
         bundled = args.build / "mods/bundled"
         if bundled.is_symlink():
@@ -167,15 +162,12 @@ def stage(args: argparse.Namespace) -> None:
             raise ValueError("The verified emitter returned an invalid codegen hash.")
         (payload / "psxrecomp/runtime/include/overlay_codegen_hash.h").write_text(
             f"#pragma once\n#define PSX_OVERLAY_CODEGEN_HASH 0x{codegen_hash}u\n", encoding="utf-8")
-        hashes = {path.relative_to(payload).as_posix(): file_hash(path)
-                  for path in sorted(payload.rglob("*")) if path.is_file()}
-        toolchain_hashes = {path.relative_to(pack).as_posix(): file_hash(path)
-                           for path in sorted(pack.rglob("*")) if path.is_file()}
         metadata = {"platform": args.platform, "version": (ROOT / "VERSION").read_text().strip(),
-                    "toolchain_sha256": PINS[args.platform][1], "toolchain_files": toolchain_hashes,
-                    "files": hashes}
+                    "toolchain_sha256": PINS[args.platform][1], "toolchain_files": file_hashes(pack),
+                    "files": file_hashes(payload)}
         (staging / "release.json").write_text(json.dumps(metadata, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-        shutil.copy2(ROOT / "tools/launch_release.py", staging / "launch_release.py")
+        for name in ("launch_release.py", "release_common.py"):
+            shutil.copy2(ROOT / "tools" / name, staging / name)
         py_relative = python.relative_to(staging).as_posix()
         if suffix:
             if args.windows_launcher is None:
