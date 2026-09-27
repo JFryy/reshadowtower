@@ -142,5 +142,73 @@
   "libglx-dev": {
     "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libglx-dev_1.6.0-1_amd64.deb",
     "sha256": "be1aa9b3a316aff17b912d473a8b2cba62620c9fcaa0102945f641981c3e2d5e"
+  },
+  "libffi-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libf/libffi/libffi-dev_3.4.4-1_amd64.deb",
+    "sha256": "89fb890aee5148f4d308a46cd8980a54fd44135f068f05b38a6ad06800bf6df3"
+  },
+  "libffi8": {
+    "url": "https://deb.debian.org/debian/pool/main/libf/libffi/libffi8_3.4.4-1_amd64.deb",
+    "sha256": "6d9f6c25c30efccce6d4bceaa48ea86c329a3432abb360a141f76ac223a4c34a"
+  },
+  "libwayland-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/w/wayland/libwayland-dev_1.21.0-1_amd64.deb",
+    "sha256": "063ac40e71069a1a92c2be32799f4a2d234f3d361ba98cea2e3137a7ab6804d1"
+  },
+  "libwayland-bin": {
+    "url": "https://deb.debian.org/debian/pool/main/w/wayland/libwayland-bin_1.21.0-1_amd64.deb",
+    "sha256": "c07fcba0849b8ca4ed744bbb820fa08a82213f8a46261024005a4d5bbc47afc1"
+  },
+  "libwayland-client0": {
+    "url": "https://deb.debian.org/debian/pool/main/w/wayland/libwayland-client0_1.21.0-1_amd64.deb",
+    "sha256": "1f002d028b8b79eec9847c636d8886d10dfe8c884cc2bebe18086b1391c5a28d"
+  },
+  "libwayland-cursor0": {
+    "url": "https://deb.debian.org/debian/pool/main/w/wayland/libwayland-cursor0_1.21.0-1_amd64.deb",
+    "sha256": "0b684467ec795024fcaae99ea4384959cc4052b2da5adec38c9b76dfed9bcf41"
+  },
+  "libwayland-egl1": {
+    "url": "https://deb.debian.org/debian/pool/main/w/wayland/libwayland-egl1_1.21.0-1_amd64.deb",
+    "sha256": "cb4225f0e15e00a3570d4cbc288c87ff477d73e741c3f1c5a6d47cf350d45378"
+  },
+  "libwayland-server0": {
+    "url": "https://deb.debian.org/debian/pool/main/w/wayland/libwayland-server0_1.21.0-1_amd64.deb",
+    "sha256": "df0396221d7b794496a687ec61fae82b6465648bc0ab6501ba0a5ed7f56eb8d6"
+  },
+  "libxkbcommon-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxkbcommon/libxkbcommon-dev_1.5.0-1_amd64.deb",
+    "sha256": "48a360a789e19277814f0c86887e629c3fc787645f94abe89b4e427c7bcc3a80"
+  },
+  "libxkbcommon0": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxkbcommon/libxkbcommon0_1.5.0-1_amd64.deb",
+    "sha256": "e3fe045b9a33a101de1c5a912a4a10928db055c3f68930f47eccbb44d7c7d54e"
+  },
+  "libegl-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libegl-dev_1.6.0-1_amd64.deb",
+    "sha256": "0ec9bffb024527dfb61eaeae44966e2b5b3114b3dc315b4117b0df95b1c96ef8"
+  },
+  "libegl1": {
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libegl1_1.6.0-1_amd64.deb",
+    "sha256": "fe4d8b39f6e6fe1a32ab1efd85893553eaa9cf3866aa668ccf355f585b37d523"
+  },
+  "libglvnd0": {
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libglvnd0_1.6.0-1_amd64.deb",
+    "sha256": "b6da5b153dd62d8b5e5fbe25242db1fc05c068707c365db49abda8c2427c75f8"
+  },
+  "libdecor-0-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libd/libdecor-0/libdecor-0-dev_0.1.1-2_amd64.deb",
+    "sha256": "eba2a249cf553a50d00b293b18d2d618bf509e0675e24ab690129967b18a6481"
+  },
+  "libdecor-0-0": {
+    "url": "https://deb.debian.org/debian/pool/main/libd/libdecor-0/libdecor-0-0_0.1.1-2_amd64.deb",
+    "sha256": "e58d66cbd2e27703c80f4e89c25fe7619db0ca0175d1077850b838023e115904"
+  },
+  "libgl-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libgl-dev_1.6.0-1_amd64.deb",
+    "sha256": "ebc12df48ae53924e114d9358ef3da4306d7ef8f7179300af52f1faef8b5db3e"
+  },
+  "libgl1": {
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libgl1_1.6.0-1_amd64.deb",
+    "sha256": "6f89b1702c48e9a2437bb3c1ffac8e1ab2d828fc28b3d14b2eecd4cc19b2c790"
   }
 }
