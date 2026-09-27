@@ -73,10 +73,7 @@ def session_lock(data: Path) -> Iterator[None]:
         lock.seek(0)
         if os.name == "nt":
             import msvcrt
-            if not lock.read(1):
-                lock.write(b"0")
-                lock.flush()
-            lock.seek(0)
+            # Windows can lock past EOF; reading first would fail if already locked.
             try:
                 msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
             except OSError as error:

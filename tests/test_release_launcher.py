@@ -36,7 +36,7 @@ class ReleaseLauncherTests(unittest.TestCase):
         self.assertNotEqual(first, second)
         self.assertEqual(save.read_bytes(), b"existing save")
         self.assertEqual((first / "settings.toml").read_text(), "player settings")
-        self.assertIn((data / "saves").as_posix(), (second / "game.toml").read_text())
+        self.assertIn((data / "saves").resolve().as_posix(), (second / "game.toml").read_text())
         self.assertEqual(launcher.prepare_workspace(payload, data, "a" * 64), first)
         self.assertIn('memcard_dir = "saves"', (payload / "game.toml").read_text())
 
