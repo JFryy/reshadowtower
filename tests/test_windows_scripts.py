@@ -29,6 +29,17 @@ class RecompilerDiscoveryTests(unittest.TestCase):
             self.assertEqual(generate_aot.find_recompiler(root, windows=False), linux)
             self.assertEqual(generate_aot.find_recompiler(root, windows=True), windows)
 
+    def test_packaged_emitters_are_found_on_both_platforms(self):
+        for windows in (False, True):
+            with self.subTest(windows=windows), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                emitter = root / "psxrecomp/recompiler/build" / (
+                    "psxrecomp-game.exe" if windows else "psxrecomp-game"
+                )
+                emitter.parent.mkdir(parents=True)
+                emitter.touch()
+                self.assertEqual(generate_aot.find_recompiler(root, windows=windows), emitter)
+
     def test_missing_windows_emitter_has_clear_error(self):
         with tempfile.TemporaryDirectory() as directory:
             expected = Path(directory) / "build-recompiler" / "psxrecomp-game.exe"

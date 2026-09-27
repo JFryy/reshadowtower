@@ -58,12 +58,17 @@ def find_recompiler(root: Path = ROOT, *, windows: bool | None = None) -> Path:
     if windows is None:
         windows = os.name == "nt"
     name = "psxrecomp-game.exe" if windows else "psxrecomp-game"
-    recompiler = (root / "build-recompiler" / name).resolve()
-    if not recompiler.is_file():
-        raise FileNotFoundError(
-            f"missing emitter: {recompiler}; run ./scripts/build.sh first"
-        )
-    return recompiler
+    candidates = (
+        root / "build-recompiler" / name,
+        root / "psxrecomp" / "recompiler" / "build" / name,
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    raise FileNotFoundError(
+        f"missing emitter: {candidates[0].resolve()} or {candidates[1].resolve()}; "
+        "run ./scripts/build.sh or reinstall the setup package"
+    )
 
 
 def address(value: Any) -> int:

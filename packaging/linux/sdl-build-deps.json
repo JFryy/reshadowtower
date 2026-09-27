@@ -1,0 +1,146 @@
+{
+  "libx11-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libx11/libx11-dev_1.8.4-2+deb12u2_amd64.deb",
+    "sha256": "8493220d4309af1907a1f2f6eeb204c8103dafcc368394fbc4a0858c28612ff9"
+  },
+  "libx11-6": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libx11/libx11-6_1.8.4-2+deb12u2_amd64.deb",
+    "sha256": "d88c973e79fd9b65838d77624142952757e47a6eb1a58602acf0911cf35989f4"
+  },
+  "libxext-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxext/libxext-dev_1.3.4-1+b1_amd64.deb",
+    "sha256": "591456aba90eeed7a1c1b044d469fd7704bf7d83af9dc574bbe2efc4a2fd1dba"
+  },
+  "libxext6": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxext/libxext6_1.3.4-1+b1_amd64.deb",
+    "sha256": "504b7be9d7df4f6f4519e8dd4d6f9d03a9fb911a78530fa23a692fba3058cba6"
+  },
+  "libxi-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxi/libxi-dev_1.8-1+b1_amd64.deb",
+    "sha256": "80cd30f783e90a46b0190990d6194dc83d9c24d67a81cc2346f69b8e2ddc9590"
+  },
+  "libxi6": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxi/libxi6_1.8-1+b1_amd64.deb",
+    "sha256": "6c2fb5f241b311788990122c6e693915867cd8ed9d6da2e3524aec7ed3cdb4c0"
+  },
+  "libxcursor-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcursor/libxcursor-dev_1.2.1-1_amd64.deb",
+    "sha256": "9f9eb5d01049b81f13f34d2c54aa474cc649853c752eaa53aba5dcd846d18b1b"
+  },
+  "libxcursor1": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcursor/libxcursor1_1.2.1-1_amd64.deb",
+    "sha256": "49e167048661be4c614fff81429e9eaef38e54ef1d2150a5d2a8c53919217529"
+  },
+  "libxfixes-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxfixes/libxfixes-dev_6.0.0-2_amd64.deb",
+    "sha256": "75fd16d0f67f5d4eb718d81bfa15d0b2163637293e48f1e24e2c11f9af590dda"
+  },
+  "libxfixes3": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxfixes/libxfixes3_6.0.0-2_amd64.deb",
+    "sha256": "1cd616396ff2ecae77e6e8b5b7695d414f0146de2d147837a2a02165f99e1a2c"
+  },
+  "libxrandr-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxrandr/libxrandr-dev_1.5.2-2+b1_amd64.deb",
+    "sha256": "a0048d088226403419d9b0856e2d6d29a4facdd1708b6ceda095d7190f819ff3"
+  },
+  "libxrandr2": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxrandr/libxrandr2_1.5.2-2+b1_amd64.deb",
+    "sha256": "e2e10b672085ddf1d294cd689ed21bde5899325fd13626c2614b7d7b2d49a808"
+  },
+  "libxrender-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxrender/libxrender-dev_0.9.10-1.1_amd64.deb",
+    "sha256": "51be2e92b7bb9a81f8dbcad7a0086a58c779761c17f8aa13893b843bced0ae9b"
+  },
+  "libxrender1": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxrender/libxrender1_0.9.10-1.1_amd64.deb",
+    "sha256": "b2a6d160578f359220101947c8d67059b44704a251e688de1d0b744fefedfd1a"
+  },
+  "libxss-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxss/libxss-dev_1.2.3-1_amd64.deb",
+    "sha256": "11968b1ac7a10de3731be164b343a3c960633a003ee5629770e06927222ef36b"
+  },
+  "libxss1": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxss/libxss1_1.2.3-1_amd64.deb",
+    "sha256": "85cce16368f08a878fa892fbc54520fc654d00769cde6d300b8b802734a993c0"
+  },
+  "libxtst-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxtst/libxtst-dev_1.2.3-1.1_amd64.deb",
+    "sha256": "e81d9780229d2d5892148f95fa73d7aaa33ad9af0a14623782001a27034d1633"
+  },
+  "libxtst6": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxtst/libxtst6_1.2.3-1.1_amd64.deb",
+    "sha256": "be67f1efe7cd3dbe9dc0d717e0a8c0959cc663950aa15a42636ab90b134f9cb5"
+  },
+  "x11proto-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/x/xorgproto/x11proto-dev_2022.1-1_all.deb",
+    "sha256": "3cab66a6591774188a568f9b54c4e7956f18da76e0e0fc4a779db5f6bcc3f148"
+  },
+  "libxcb1-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb1-dev_1.15-1_amd64.deb",
+    "sha256": "c078c024114fdada06d3158af1771d7ed8763ab434cfbcbe6a334aa8a9cae358"
+  },
+  "libxcb1": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb1_1.15-1_amd64.deb",
+    "sha256": "fdc61332a3892168f3cc9cfa1fe9cf11a91dc3e0acacbc47cbc50ebaa234cc71"
+  },
+  "libxau-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxau/libxau-dev_1.0.9-1_amd64.deb",
+    "sha256": "d1a7f5d484e0879b3b2e8d512894744505e53d078712ce65903fef2ecfd824bb"
+  },
+  "libxau6": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxau/libxau6_1.0.9-1_amd64.deb",
+    "sha256": "679db1c4579ec7c61079adeaae8528adeb2e4bf5465baa6c56233b995d714750"
+  },
+  "libxdmcp-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxdmcp/libxdmcp-dev_1.1.2-3_amd64.deb",
+    "sha256": "c6733e5f6463afd261998e408be6eb37f24ce0a64b63bed50a87ddb18ebc1699"
+  },
+  "libxdmcp6": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxdmcp/libxdmcp6_1.1.2-3_amd64.deb",
+    "sha256": "ecb8536f5fb34543b55bb9dc5f5b14c9dbb4150a7bddb3f2287b7cab6e9d25ef"
+  },
+  "libasound2-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/a/alsa-lib/libasound2-dev_1.2.8-1+b1_amd64.deb",
+    "sha256": "6eddd5b43c03cdd769f6b6f4506abcbc84c19d4bada2b3036d1fd921a9875d7a"
+  },
+  "libasound2": {
+    "url": "https://deb.debian.org/debian/pool/main/a/alsa-lib/libasound2_1.2.8-1+b1_amd64.deb",
+    "sha256": "44c77b076a7b11ae99712439022d822245b1994c435da564ebd320bb676faf4c"
+  },
+  "libpulse-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/p/pulseaudio/libpulse-dev_16.1+dfsg1-2+b1_amd64.deb",
+    "sha256": "835c3b0bb4353830cbede89c5827423d081c8c70617e2747beb6be2bf793e07f"
+  },
+  "libpulse0": {
+    "url": "https://deb.debian.org/debian/pool/main/p/pulseaudio/libpulse0_16.1+dfsg1-2+b1_amd64.deb",
+    "sha256": "7b2c5403cb726312219aad678becc6d6adcee1d8694fdffce0b6ec15ae010831"
+  },
+  "libx11-xcb-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libx11/libx11-xcb-dev_1.8.4-2+deb12u2_amd64.deb",
+    "sha256": "47e203c32aea08b81dc8fb3c25052b2431da184f7716b7d4ff92628dfe675534"
+  },
+  "libx11-xcb1": {
+    "url": "https://deb.debian.org/debian/pool/main/libx/libx11/libx11-xcb1_1.8.4-2+deb12u2_amd64.deb",
+    "sha256": "f5da45e1d881a793250a96613f28c471a248877f1a0f18a5c90e2a620a76c898"
+  },
+  "libpthread-stubs0-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libp/libpthread-stubs/libpthread-stubs0-dev_0.4-1_amd64.deb",
+    "sha256": "54632f160e1e8a43656a87195a547391038c4ca0f53291b849cd4457ba5dfde9"
+  },
+  "xtrans-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/x/xtrans/xtrans-dev_1.4.0-1_all.deb",
+    "sha256": "9ce1af9464faee0c679348dd11cdf63934c12e734a64e0903692b0cb5af38e06"
+  },
+  "libudev-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/s/systemd/libudev-dev_252.39-1~deb12u2_amd64.deb",
+    "sha256": "b8795a05b96799cb25ed3677eef8e8b1f1facdf07ad4527e06ef8f82ca164fbd"
+  },
+  "libudev1": {
+    "url": "https://deb.debian.org/debian/pool/main/s/systemd/libudev1_252.39-1~deb12u2_amd64.deb",
+    "sha256": "6f7e08f11c4809d2e5998c775f7b423ab5ec2ce0309494b4a2615037052245e2"
+  },
+  "libglx-dev": {
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libglx-dev_1.6.0-1_amd64.deb",
+    "sha256": "be1aa9b3a316aff17b912d473a8b2cba62620c9fcaa0102945f641981c3e2d5e"
+  }
+}
