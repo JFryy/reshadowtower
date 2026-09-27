@@ -21,7 +21,8 @@ PROJECT_FILES = (
     "seeds/ghidra_funcs.txt", "tools/prepare_input.py", "tools/prepare_graphics.py",
     "tools/prepare_setup.py", "tools/release_cli.py", "tools/generate_aot.py",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",
-    "tools/prepare_setup_ui.py", "src/setup_music.cpp", "src/setup_music.h",
+    "cmake/setup.cmake", "tools/prepare_setup_ui.py", "src/setup_music.cpp", "src/setup_music.h",
+    "src/setup_music_ui.cpp", "src/setup_music_ui.h",
     "assets/setup/boxart.tga", "assets/setup/music.wav",
 )
 

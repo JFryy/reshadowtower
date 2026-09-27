@@ -37,85 +37,13 @@ Source: "{#PackageDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubd
 Name: "{group}\ReShadowTower"; Filename: "{app}\ReShadowTower.exe"
 
 [Code]
-const
-  SND_ASYNC = $0001;
-  SND_NODEFAULT = $0002;
-  SND_LOOP = $0008;
-  SND_FILENAME = $00020000;
+#include "setup_music.iss"
 
-function PlaySoundW(pszSound: String; hmod: Integer; fdwSound: Integer): Boolean;
-  external 'PlaySoundW@winmm.dll stdcall';
-function StopPlaySound(pszSound: Integer; hmod: Integer; fdwSound: Integer): Boolean;
-  external 'PlaySoundW@winmm.dll stdcall';
-
-var
-  MusicCheckBox: TNewCheckBox;
-  MusicStatus: TNewStaticText;
-  MusicExtracted: Boolean;
-
-{ Stop playback before changing tracks or closing Setup. }
-procedure StopMusic;
-begin
-  StopPlaySound(0, 0, 0);
-end;
-
-{ Start the bundled track without blocking the installer; report failures in the wizard. }
-procedure StartMusic;
-begin
-  try
-    if not MusicExtracted then
-    begin
-      ExtractTemporaryFile('music.wav');
-      MusicExtracted := True;
-    end;
-    if not PlaySoundW(ExpandConstant('{tmp}\music.wav'), 0,
-      SND_ASYNC or SND_NODEFAULT or SND_LOOP or SND_FILENAME) then
-    begin
-      MusicStatus.Caption := 'Music could not be played; installation can continue.';
-      MusicCheckBox.Caption := 'Music unavailable (installation can continue)';
-      MusicCheckBox.Enabled := False;
-      Log('Setup music playback failed.');
-    end;
-  except
-    MusicStatus.Caption := 'Music could not be played; installation can continue.';
-    MusicCheckBox.Caption := 'Music unavailable (installation can continue)';
-    MusicCheckBox.Enabled := False;
-    Log('Setup music extraction or playback failed: ' + GetExceptionMessage);
-  end;
-end;
-
-{ Toggle music without affecting installation. }
-procedure MusicClicked(Sender: TObject);
-begin
-  if MusicCheckBox.Checked then
-    StartMusic
-  else
-    StopMusic;
-end;
-
-{ Keep the mute control accessible on every wizard page. }
 procedure InitializeWizard;
 begin
-  MusicCheckBox := TNewCheckBox.Create(WizardForm);
-  MusicCheckBox.Parent := WizardForm;
-  MusicCheckBox.Left := ScaleX(16);
-  MusicCheckBox.Top := WizardForm.CancelButton.Top;
-  MusicCheckBox.Width := WizardForm.BackButton.Left - ScaleX(24);
-  MusicCheckBox.Height := ScaleY(20);
-  MusicCheckBox.Caption := 'Play setup music';
-  MusicCheckBox.Checked := True;
-  MusicCheckBox.OnClick := @MusicClicked;
-
-  MusicStatus := TNewStaticText.Create(WizardForm);
-  MusicStatus.Parent := WizardForm.WelcomePage;
-  MusicStatus.Left := WizardForm.WelcomeLabel2.Left;
-  MusicStatus.Top := WizardForm.WelcomePage.Height - ScaleY(40);
-  MusicStatus.Width := WizardForm.WelcomeLabel2.Width;
-  MusicStatus.Height := ScaleY(30);
-  StartMusic;
+  InitializeMusic;
 end;
 
-{ Stop the loop on cancellation and successful completion alike. }
 procedure DeinitializeSetup;
 begin
   StopMusic;

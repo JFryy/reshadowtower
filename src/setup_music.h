@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 #include <string>
 
+// Owns a looping WAV stream and one SDL audio subsystem reference.
 class SetupMusic {
 public:
     explicit SetupMusic(const char* path);
@@ -17,11 +18,12 @@ public:
 
 private:
     void fail(const char* message);
+    void cleanup();
     SDL_AudioStream* stream_ = nullptr;
     Uint8* wav_ = nullptr;
     Uint32 length_ = 0;
     Uint32 position_ = 0;
-    bool owns_audio_ = false;
+    bool audio_initialized_ = false;
     bool muted_ = false;
     std::string error_;
 };

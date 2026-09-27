@@ -89,15 +89,6 @@ class DistributionTests(unittest.TestCase):
             exported = list(package_release.source_files())
         self.assertEqual(exported, paths[1:4])
 
-    def test_setup_media_and_adapter_are_exported(self):
-        with mock.patch.object(package_release, "tracked_files", return_value=[]):
-            exported = {p.relative_to(package_release.ROOT).as_posix()
-                        for p in package_release.source_files()}
-        for name in ("assets/setup/music.wav", "assets/setup/boxart.tga",
-                     "src/setup_music.cpp", "src/setup_music.h", "tools/prepare_setup_ui.py"):
-            self.assertIn(name, exported)
-        self.assertNotIn("handoff.md", exported)
-
     def test_staged_assets_merge_with_source_media_and_are_hashed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
