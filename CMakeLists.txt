@@ -35,6 +35,7 @@ psxrecomp_add_game_runtime(psx-runtime
     GEN_MARKER "generated/SLUS_008.63_dispatch.c"
     GEN_FULL_GLOB "generated/SLUS_008.63_full_*.c"
     CODEGEN_SETUP_SOURCES codegen_setup.c
+    LAUNCHER_BOXART "${CMAKE_CURRENT_SOURCE_DIR}/assets/setup/boxart.tga"
 )
 
 if(PSX_RECOMP_UI)
@@ -49,6 +50,28 @@ if(PSX_RECOMP_UI)
     list(REMOVE_ITEM _setup_sources "${PSXRECOMP_ROOT}/host/psxrecomp_codegen_host.c")
     set_property(TARGET psx-runtime PROPERTY SOURCES "${_setup_sources}")
     target_sources(psx-runtime PRIVATE "${_setup_source}")
+
+    set(_setup_ui_original "${RECOMP_UI_ROOT}/src/common/backends/imgui/launcher_imgui.cpp")
+    set(_setup_ui_source "${CMAKE_CURRENT_BINARY_DIR}/setup/launcher_imgui.cpp")
+    add_custom_command(OUTPUT "${_setup_ui_source}"
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/prepare_setup_ui.py"
+            --source "${_setup_ui_original}" --output "${_setup_ui_source}"
+        DEPENDS tools/prepare_setup_ui.py "${_setup_ui_original}"
+        VERBATIM)
+    get_target_property(_setup_sources psx-runtime SOURCES)
+    list(REMOVE_ITEM _setup_sources "${_setup_ui_original}")
+    set_property(TARGET psx-runtime PROPERTY SOURCES "${_setup_sources}")
+    target_sources(psx-runtime PRIVATE "${_setup_ui_source}" src/setup_music.cpp)
+    target_include_directories(psx-runtime PRIVATE "${RECOMP_UI_ROOT}/src/common/backends/imgui")
+    add_custom_command(TARGET psx-runtime POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:psx-runtime>/assets/setup"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/setup/music.wav"
+            "$<TARGET_FILE_DIR:psx-runtime>/assets/setup/music.wav"
+        VERBATIM)
+    set_property(TARGET psx-runtime APPEND PROPERTY LINK_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/setup/music.wav"
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/setup/boxart.tga")
 endif()
 
 if(PSXRECOMP_FORCE_SETUP_HOST)

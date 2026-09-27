@@ -89,6 +89,56 @@ class DistributionTests(unittest.TestCase):
             exported = list(package_release.source_files())
         self.assertEqual(exported, paths[1:4])
 
+    def test_setup_media_and_adapter_are_exported(self):
+        with mock.patch.object(package_release, "tracked_files", return_value=[]):
+            exported = {p.relative_to(package_release.ROOT).as_posix()
+                        for p in package_release.source_files()}
+        for name in ("assets/setup/music.wav", "assets/setup/boxart.tga",
+                     "src/setup_music.cpp", "src/setup_music.h", "tools/prepare_setup_ui.py"):
+            self.assertIn(name, exported)
+        self.assertNotIn("handoff.md", exported)
+
+    def test_staged_assets_merge_with_source_media_and_are_hashed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            host, emitters = root / "host", root / "emitters"
+            (host / "assets/setup").mkdir(parents=True)
+            (host / "assets/setup/music.wav").write_bytes(b"music")
+            (host / "assets/img").mkdir()
+            (host / "assets/img/boxart.tga").write_bytes(b"cover")
+            (host / "mods/bundled").mkdir(parents=True)
+            (host / "Shadow_Tower_Recompiled.exe").write_bytes(b"host")
+            emitters.mkdir()
+            for name in ("psxrecomp-game.exe", "psxrecomp-bios.exe"):
+                (emitters / name).write_bytes(b"emitter")
+            launcher = root / "ReShadowTower.exe"
+            launcher.write_bytes(b"launcher")
+
+            def extract(archive, destination, digest):
+                (destination / "bin").mkdir(parents=True)
+                (destination / "python").mkdir()
+                for name in ("cmake", "ninja", "clang", "clang++"):
+                    (destination / "bin" / (name + ".exe")).write_bytes(b"tool")
+                (destination / "python/python.exe").write_bytes(b"python")
+                (destination / "retcomm-toolchain.json").write_text("{}")
+
+            def sources(destination):
+                (destination / "assets/setup").mkdir(parents=True)
+                (destination / "assets/setup/music.wav").write_bytes(b"music")
+                (destination / "psxrecomp/runtime/include").mkdir(parents=True)
+
+            args = SimpleNamespace(build=host, emitters=emitters, platform="windows-x64",
+                                   windows_launcher=launcher, toolchain_archive=root / "archive.zip",
+                                   output=root / "package")
+            with mock.patch("bundled_toolchain.extract_verified", side_effect=extract), \
+                 mock.patch.object(package_release, "copy_sources", side_effect=sources), \
+                 mock.patch.object(subprocess, "check_output", return_value="1234abcd"):
+                package_release.stage(args)
+            metadata = json.loads((args.output / "release.json").read_text())
+            for name in ("assets/setup/music.wav", "assets/img/boxart.tga"):
+                self.assertEqual(metadata["files"][name],
+                                 package_release.file_hash(args.output / "payload" / name))
+
     def test_installer_never_deletes_user_data(self):
         source = (package_release.ROOT / "packaging/windows/ReShadowTower.iss").read_text()
         self.assertIn("PrivilegesRequired=lowest", source)

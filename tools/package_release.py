@@ -21,6 +21,8 @@ PROJECT_FILES = (
     "seeds/ghidra_funcs.txt", "tools/prepare_input.py", "tools/prepare_graphics.py",
     "tools/prepare_setup.py", "tools/release_cli.py", "tools/generate_aot.py",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",
+    "tools/prepare_setup_ui.py", "src/setup_music.cpp", "src/setup_music.h",
+    "assets/setup/boxart.tga", "assets/setup/music.wav",
 )
 
 
@@ -137,7 +139,7 @@ def stage(args: argparse.Namespace) -> None:
         for name in ("Shadow_Tower_Recompiled" + suffix,):
             shutil.copy2(args.build / name, payload / name)
         for name in ("assets", "mods"):
-            shutil.copytree(args.build / name, payload / name)
+            shutil.copytree(args.build / name, payload / name, dirs_exist_ok=name == "assets")
         # Copy only bundled catalogs, never local mod state or installed mods.
         for path in (payload / "mods").iterdir():
             if path.name != "bundled":
