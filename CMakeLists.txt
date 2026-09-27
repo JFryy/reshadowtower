@@ -14,6 +14,7 @@ else()
     option(PSX_RECOMP_UI "Enable the launcher" OFF)
 endif()
 include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")
+include(cmake/adapters.cmake)
 include(cmake/graphics.cmake)
 include(cmake/input.cmake)
 

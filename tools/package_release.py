@@ -11,20 +11,38 @@ import shutil
 import subprocess
 import sys
 
-from check_setup_sources import validate_sources
+from bundled_toolchain import PINS, extract_verified, tool_paths
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_FILES = (
     "CMakeLists.txt", "game.toml", "config.ini", "VERSION", "LICENSE",
     "codegen_setup.c", "codegen_setup.h", "cmake/graphics.cmake", "cmake/input.cmake",
     "src/modern_controls.c", "src/modern_controls.h", "src/world_texture_filter.glsl",
-    "seeds/ghidra_funcs.txt", "tools/prepare_input.py", "tools/prepare_graphics.py",
-    "tools/prepare_setup.py", "tools/release_cli.py", "tools/generate_aot.py",
+    "seeds/ghidra_funcs.txt", "tools/prepare_source.py", "tools/release_cli.py", "tools/generate_aot.py",
+    "cmake/adapters.cmake", "patches/runtime-input.patch", "patches/runtime-graphics.patch",
+    "patches/setup-host.patch", "patches/setup-ui.patch",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",
-    "cmake/setup.cmake", "tools/prepare_setup_ui.py", "src/setup_music.cpp", "src/setup_music.h",
+    "cmake/setup.cmake", "src/setup_music.cpp", "src/setup_music.h",
     "src/setup_music_ui.cpp", "src/setup_music_ui.h",
     "assets/setup/boxart.tga", "assets/setup/music.wav",
 )
+
+
+def validate_sources(manifest: Path, project: Path) -> None:
+    if not manifest.is_file():
+        raise ValueError(f"Missing {manifest}; configure a setup-host build first.")
+    sources = [Path(line) for line in manifest.read_text(encoding="utf-8").splitlines() if line]
+    resolved = [(source if source.is_absolute() else project / source).resolve() for source in sources]
+    forbidden = (project.resolve() / "generated", project.resolve() / "psxrecomp/generated")
+    for source in resolved:
+        if "generated" in source.parts or any(source.is_relative_to(root) for root in forbidden):
+            raise ValueError(f"Setup host links generated code: {source}. Refusing packaging.")
+    required = manifest.resolve().parent / "setup/psxrecomp_codegen_host.c"
+    original = project.resolve() / "psxrecomp/host/psxrecomp_codegen_host.c"
+    if original in resolved:
+        raise ValueError("Setup host links the unrestricted upstream toolchain installer.")
+    if required not in resolved:
+        raise ValueError("Setup host is missing the first-run codegen implementation.")
 
 
 def tracked_files(repo: Path):
@@ -78,7 +96,6 @@ def source_fingerprint() -> str:
 
 
 def validate_build(args: argparse.Namespace) -> None:
-    from bundled_toolchain import PINS
     import build_bundled_sdl
     stamp = json.loads((args.build / "release-build.json").read_text(encoding="utf-8"))
     if stamp["source_fingerprint"] != source_fingerprint():
@@ -109,7 +126,6 @@ def file_hash(path: Path) -> str:
 
 
 def stage(args: argparse.Namespace) -> None:
-    from bundled_toolchain import PINS, extract_verified
     import tempfile
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -117,17 +133,9 @@ def stage(args: argparse.Namespace) -> None:
         staging = Path(directory) / "ReShadowTower"
         staging.mkdir()
         extract_verified(args.toolchain_archive, staging / "toolchain", PINS[args.platform][1])
-        candidates = [p.parent for p in (staging / "toolchain").rglob("retcomm-toolchain.json")]
-        if len(candidates) != 1:
-            raise ValueError("Expected exactly one toolchain metadata file.")
-        pack = candidates[0]
-        if pack != staging / "toolchain":
-            raise ValueError("Toolchain archive layout changed; review the pinned archive before packaging.")
+        python, *_ = tool_paths(staging / "toolchain", args.platform)
+        pack = staging / "toolchain"
         suffix = ".exe" if args.platform == "windows-x64" else ""
-        python = pack / ("python/python.exe" if suffix else "python/bin/python3")
-        for path in (python, *(pack / "bin" / (name + suffix) for name in ("cmake", "ninja", "clang", "clang++"))):
-            if not path.is_file():
-                raise ValueError(f"Incomplete toolchain: {path.relative_to(staging)}")
         payload = staging / "payload"
         payload.mkdir()
         copy_sources(payload)
@@ -139,15 +147,13 @@ def stage(args: argparse.Namespace) -> None:
                 raise ValueError("Staged SDL files differ from verified build")
         for name in ("Shadow_Tower_Recompiled" + suffix,):
             shutil.copy2(args.build / name, payload / name)
-        for name in ("assets", "mods"):
-            shutil.copytree(args.build / name, payload / name, dirs_exist_ok=name == "assets")
-        # Copy only bundled catalogs, never local mod state or installed mods.
-        for path in (payload / "mods").iterdir():
-            if path.name != "bundled":
-                if path.is_dir():
-                    shutil.rmtree(path)
-                else:
-                    path.unlink()
+        shutil.copytree(args.build / "assets", payload / "assets", dirs_exist_ok=True)
+        bundled = args.build / "mods/bundled"
+        if bundled.is_symlink():
+            raise ValueError("Bundled mod catalog must not be a symlink")
+        if any(path.is_symlink() for path in bundled.rglob("*")):
+            raise ValueError("Bundled mod catalog contains a symlink")
+        shutil.copytree(bundled, payload / "mods/bundled")
         for name in ("psxrecomp-game", "psxrecomp-bios"):
             destination = payload / "psxrecomp/recompiler/build" / (name + suffix)
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -196,7 +202,7 @@ def main() -> int:
     try:
         validate_sources(args.build / "setup-sources.txt", ROOT)
         validate_build(args)
-        if args.output.exists():
+        if args.output.exists() or args.output.is_symlink():
             raise ValueError(f"Refusing to replace existing package: {args.output}")
         stage(args)
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:

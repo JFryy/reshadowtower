@@ -1,0 +1,81 @@
+# source-sha256: 2978b43a207210fa6f258b519c3a07360664c31d3490fa9e5583c04e777f18c9
+--- a/psxrecomp/runtime/src/gpu_gl_renderer.c
++++ b/psxrecomp/runtime/src/gpu_gl_renderer.c
+@@ -376,3 +376,3 @@
+  * pre-feature pipeline. */
+-#define TEXV 20
++#define TEXV 21
+ static GLuint s_blit_prog = 0, s_blit_vao = 0, s_blit_vbo = 0;
+@@ -1050,2 +1050,4 @@
+     "layout(location=9) in float a_q;   /* persp weight; 0 = affine (default) */\n"
++    "layout(location=10) in float a_world_filter;\n"
++    "flat out int v_world_filter;\n"
+     "uniform float u_shift;\n"
+@@ -1062,2 +1064,3 @@
+     "  v_persp = (a_q > 0.0) ? 1 : 0;\n"
++    "  v_world_filter = int(a_world_filter);\n"
+     "  v_tpage = ivec2(a_tpage + 0.5); v_clut = ivec2(a_clut + 0.5);\n"
+@@ -1085,2 +1088,3 @@
+     "smooth in vec2 v_uv_p; flat in int v_persp;\n"
++    "flat in int v_world_filter;\n"
+     "out vec4 frag; out vec4 blend_factor;\n"
+@@ -1123,2 +1127,3 @@
+     "}\n"
++#include "world_texture_filter.inc"
+     "void main(){\n"
+@@ -1129,35 +1134,8 @@
+     "  vec2 uv = (v_persp != 0) ? v_uv_p : v_uv;\n"
+-    "  if (u_filter == 0) {\n"
+-    "    int raw = fetch_texel(int(floor(uv.x)), int(floor(uv.y)));\n"
+-    "    if (raw == 0) discard;\n"
+-    "    rgb = col5(raw);\n"
+-    "    stp = (raw >> 15) & 1;\n"
+-    "  } else {\n"
+-    "    /* Bilinear, Beetle-PSX formulation: the NEAREST texel is the base\n"
+-    "     * (cutout + STP authority), the neighbours lie toward the sub-texel\n"
+-    "     * offset and clamp to u_limits, and each texel's weight is gated by\n"
+-    "     * its opacity with the colour renormalised — so prim edges and\n"
+-    "     * cutout borders keep their colour instead of dissolving into the\n"
+-    "     * transparent (black) neighbour and discarding whole edge columns.\n"
+-    "     * Recenter from PS1 top-left point sampling to the bilinear footprint. */\n"
+-    "    uv += vec2(u_shift);\n"
+-    "    int iu = int(floor(uv.x)), iv = int(floor(uv.y));\n"
+-    "    float fx = uv.x - float(iu) - 0.5, fy = uv.y - float(iv) - 0.5;\n"
+-    "    int sx = fx < 0.0 ? -1 : 1, sy = fy < 0.0 ? -1 : 1;\n"
+-    "    fx = abs(fx); fy = abs(fy);\n"
+-    "    int c00 = fetch_texel(iu, iv);\n"
+-    "    if (c00 == 0) discard;\n"
+-    "    int c10 = fetch_texel(iu + sx, iv);\n"
+-    "    int c01 = fetch_texel(iu, iv + sy);\n"
+-    "    int c11 = fetch_texel(iu + sx, iv + sy);\n"
+-    "    float w00 = (c00 == 0 ? 0.0 : 1.0) * (1.0 - fx) * (1.0 - fy);\n"
+-    "    float w10 = (c10 == 0 ? 0.0 : 1.0) * fx * (1.0 - fy);\n"
+-    "    float w01 = (c01 == 0 ? 0.0 : 1.0) * (1.0 - fx) * fy;\n"
+-    "    float w11 = (c11 == 0 ? 0.0 : 1.0) * fx * fy;\n"
+-    "    float opac = w00 + w10 + w01 + w11;\n"
+-    "    rgb = (col5(c00)*w00 + col5(c10)*w10 + col5(c01)*w01 + col5(c11)*w11) / opac;\n"
+-    "    float stpf = (float((c00 >> 15) & 1) * w00 + float((c10 >> 15) & 1) * w10\n"
+-    "                + float((c01 >> 15) & 1) * w01 + float((c11 >> 15) & 1) * w11) / opac;\n"
+-    "    stp = stpf >= 0.5 ? 1 : 0;\n"
+-    "  }\n"
++    "  vec2 dx = dFdx(uv), dy = dFdy(uv);\n"
++    "  int raw = fetch_texel(int(floor(uv.x)), int(floor(uv.y)));\n"
++    "  if (raw == 0) discard;\n"
++    "  stp = (raw >> 15) & 1;\n"
++    "  rgb = (u_filter != 0 && v_world_filter != 0)\n"
++    "      ? world_filter(uv, dx, dy, raw) : col5(raw);\n"
+     "  if (u_semipass == 1 && stp == 1) discard;\n"
+@@ -2027,2 +2005,5 @@
+                                   int semi, const int *lim) {
++    /* Rectangles carry explicit limits. Only modulated, opaque polygons
++     * with validated subpixel positions qualify, not raw sprites/UI. */
++    const int world_filter = !lim && s_pc_valid && !rawtex && semi < 0;
+     int lim_buf[4];
+@@ -2112,2 +2093,3 @@
+             vp[19] = s_pq_valid ? s_pq[i] : 0.0f;                   /* a_q; 0 = affine */
++            vp[20] = (float)world_filter;
+         }
+@@ -2894,2 +2876,3 @@
+         p_glVertexAttribPointer(9, 1, GL_FLOAT, GL_FALSE, st, (void*)(19*sizeof(float))); p_glEnableVertexAttribArray(9); /* q      */
++        p_glVertexAttribPointer(10, 1, GL_FLOAT, GL_FALSE, st, (void*)(20*sizeof(float))); p_glEnableVertexAttribArray(10);
+     }

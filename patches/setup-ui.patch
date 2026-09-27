@@ -1,0 +1,66 @@
+# source-sha256: 1c5908358e490f812ff93f3f7f3778d7940a7fd62d93929d6078043c15daeedc
+--- a/recomp-ui/src/common/backends/imgui/launcher_imgui.cpp
++++ b/recomp-ui/src/common/backends/imgui/launcher_imgui.cpp
+@@ -13,2 +13,3 @@
+ #include "launcher_backend.h"
++#include "setup_music_ui.h"
+ #include "launcher_boot_timing.h"
+@@ -11991,3 +11992,3 @@
+  * first-run form so nothing else is interactive. */
+-static void draw_setup_progress_modal(LauncherModel* m, const LauncherTheme& th) {
++static void draw_setup_progress_modal(LauncherModel* m, const LauncherTheme& th, SetupMusicUI& music) {
+     static const char* kProgPopup = "Setup progress";
+@@ -12003,2 +12004,3 @@
+ 
++    music.draw_controls();
+     const float wrap_x = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
+@@ -12224,3 +12226,3 @@
+ 
+-void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
++void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th, SetupMusicUI& music) {
+     if (!m->setup_wizard_supported) return;
+@@ -12232,3 +12234,3 @@
+     if (m->setup_preparing) {
+-        draw_setup_progress_modal(m, th);
++        draw_setup_progress_modal(m, th, music);
+         return;
+@@ -12253,2 +12255,3 @@
+ 
++    music.draw_controls();
+     const float wrap_x = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
+@@ -12384,3 +12387,3 @@
+                 ImGui::EndPopup();
+-                draw_setup_progress_modal(m, th);
++                draw_setup_progress_modal(m, th, music);
+                 return;
+@@ -12751,3 +12754,3 @@
+             ImGui::EndPopup();
+-            draw_setup_progress_modal(m, th);
++            draw_setup_progress_modal(m, th, music);
+             return;
+@@ -13063,3 +13066,3 @@
+ 
+-void draw_ui(LauncherModel* m, const LauncherTheme& th, int logical_w, int logical_h) {
++void draw_ui(LauncherModel* m, const LauncherTheme& th, int logical_w, int logical_h, SetupMusicUI& music) {
+     ImGuiViewport* vp = ImGui::GetMainViewport();
+@@ -13261,3 +13264,3 @@
+     draw_footer(m, th, footer_h);
+-    draw_setup_wizard_modal(m, th);
++    draw_setup_wizard_modal(m, th, music);
+     draw_bios_confirm_modal(m, th);
+@@ -13820,3 +13823,6 @@
+ 
++    SetupMusicUI setup_music(m->setup_wizard_supported && m->setup_wizard_open,
++                             asset("assets/setup/music.wav").c_str());
+     while (m->action == LNG_ACTION_NONE && !p->should_quit) {
++        setup_music.update(m->setup_wizard_open, m->setup_preparing);
+         /* The smoke test closes the window, which is QUIT before boot and
+@@ -13961,3 +13967,3 @@
+         ImGui::NewFrame();
+-        draw_ui(m, *th, p->logical_w, p->logical_h);
++        draw_ui(m, *th, p->logical_w, p->logical_h, setup_music);
+         ImGui::Render();
+@@ -13977,2 +13983,3 @@
+ 
++    setup_music.stop();
+     launcher_boot_timing_mark("rui:action_requested");

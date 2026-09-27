@@ -41,15 +41,8 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
     output.mkdir(parents=True)
     pack = output / "toolchain"
     bundled_toolchain.extract_verified(archive, pack, bundled_toolchain.PINS[target][1])
-    if not (pack / "retcomm-toolchain.json").is_file():
-        raise ValueError("Toolchain metadata must be directly in output/toolchain")
+    python, cmake, ninja, cc, cxx = bundled_toolchain.tool_paths(pack, target)
     suffix = ".exe" if target == "windows-x64" else ""
-    python = pack / ("python/python.exe" if suffix else "python/bin/python3")
-    cmake, ninja, cc, cxx = (pack / "bin" / (name + suffix)
-                              for name in ("cmake", "ninja", "clang", "clang++"))
-    for tool in (python, cmake, ninja, cc, cxx):
-        if not tool.is_file():
-            raise ValueError(f"Incomplete bundled toolchain: {tool}")
     env = os.environ.copy()
     for key in ("CC", "CXX", "CMAKE_PREFIX_PATH", "SDL3_DIR", "ZLIB_ROOT",
                 "LLVM_MINGW_ROOT", "PYTHONHOME", "PYTHONPATH"):
@@ -61,8 +54,6 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
         env["LD_LIBRARY_PATH"] = str(pack / "lib")
 
     if target == "linux-x64":
-        if sdl_archive is None:
-            raise ValueError("Linux builds require --sdl-archive")
         sdl = build_bundled_sdl.build(sdl_archive, output, pack, env)
 
     source = output / "source"

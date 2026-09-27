@@ -3,14 +3,12 @@
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import os
 from pathlib import Path
 import re
 import shutil
 import stat
-import sys
 import tempfile
 import zipfile
 
@@ -117,19 +115,16 @@ def extract_verified(archive_path: Path, destination: Path, expected_sha256: str
             root.rename(destination)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("platform", choices=PINS)
-    parser.add_argument("archive", type=Path, help="Previously downloaded pinned archive")
-    parser.add_argument("destination", type=Path)
-    args = parser.parse_args()
-    try:
-        extract_verified(args.archive, args.destination, PINS[args.platform][1])
-    except (OSError, ValueError, zipfile.BadZipFile) as error:
-        print(f"Toolchain extraction failed: {error}", file=sys.stderr)
-        return 1
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+def tool_paths(pack: Path, platform: str) -> tuple[Path, Path, Path, Path, Path]:
+    """Require metadata at the archive root and all bundled executables."""
+    if (not (pack / "retcomm-toolchain.json").is_file()
+            or list(pack.rglob("retcomm-toolchain.json")) != [pack / "retcomm-toolchain.json"]):
+        raise ValueError("Expected exactly one toolchain metadata file, directly in output/toolchain")
+    suffix = ".exe" if platform == "windows-x64" else ""
+    python = pack / ("python/python.exe" if suffix else "python/bin/python3")
+    tools = tuple(pack / "bin" / (name + suffix)
+                  for name in ("cmake", "ninja", "clang", "clang++"))
+    for path in (python, *tools):
+        if not path.is_file():
+            raise ValueError(f"Incomplete bundled toolchain: {path}")
+    return python, *tools

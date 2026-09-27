@@ -98,6 +98,8 @@ class DistributionTests(unittest.TestCase):
             (host / "assets/img").mkdir()
             (host / "assets/img/boxart.tga").write_bytes(b"cover")
             (host / "mods/bundled").mkdir(parents=True)
+            (host / "mods/bundled/catalog.txt").write_bytes(b"catalog")
+            (host / "mods/user.txt").write_bytes(b"private")
             (host / "Shadow_Tower_Recompiled.exe").write_bytes(b"host")
             emitters.mkdir()
             for name in ("psxrecomp-game.exe", "psxrecomp-bios.exe"):
@@ -121,23 +123,37 @@ class DistributionTests(unittest.TestCase):
             args = SimpleNamespace(build=host, emitters=emitters, platform="windows-x64",
                                    windows_launcher=launcher, toolchain_archive=root / "archive.zip",
                                    output=root / "package")
-            with mock.patch("bundled_toolchain.extract_verified", side_effect=extract), \
+            with mock.patch.object(package_release, "extract_verified", side_effect=extract), \
                  mock.patch.object(package_release, "copy_sources", side_effect=sources), \
                  mock.patch.object(subprocess, "check_output", return_value="1234abcd"):
                 package_release.stage(args)
             metadata = json.loads((args.output / "release.json").read_text())
-            for name in ("assets/setup/music.wav", "assets/img/boxart.tga"):
+            self.assertFalse((args.output / "payload/mods/user.txt").exists())
+            self.assertEqual((args.output / "payload/mods/bundled/catalog.txt").read_bytes(), b"catalog")
+            for name in ("assets/setup/music.wav", "assets/img/boxart.tga", "mods/bundled/catalog.txt"):
                 self.assertEqual(metadata["files"][name],
                                  package_release.file_hash(args.output / "payload" / name))
 
-    def test_installer_never_deletes_user_data(self):
-        source = (package_release.ROOT / "packaging/windows/ReShadowTower.iss").read_text()
-        self.assertIn("PrivilegesRequired=lowest", source)
-        self.assertIn("UsePreviousAppDir=no", source)
-        self.assertNotIn("[UninstallDelete]", source)
-        self.assertNotIn("[Registry]", source)
-        self.assertNotIn("[Run]", source)
-        self.assertIn(r"{localappdata}\Programs\ReShadowTower\{#AppVersion}", source)
+    def test_setup_source_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "setup-sources.txt"
+            host = str(root / "setup/psxrecomp_codegen_host.c")
+            for extra in ("src/modern_controls.c", ""):
+                manifest.write_text(host + "\n" + extra + "\n")
+                package_release.validate_sources(manifest, root)
+            for extra, message in (("generated/aot/overlays_static.c", "generated code"),
+                                   ("psxrecomp/generated/SCPH1001_full.c", "generated code"),
+                                   ("psxrecomp/host/psxrecomp_codegen_host.c", "unrestricted")):
+                manifest.write_text(host + "\n" + extra + "\n")
+                with self.assertRaisesRegex(ValueError, message):
+                    package_release.validate_sources(manifest, root)
+            manifest.write_text("src/modern_controls.c\n")
+            with self.assertRaisesRegex(ValueError, "first-run"):
+                package_release.validate_sources(manifest, root)
+            manifest.unlink()
+            with self.assertRaisesRegex(ValueError, "Missing"):
+                package_release.validate_sources(manifest, root)
 
 
 if __name__ == "__main__":

@@ -55,7 +55,7 @@ jobs:
       - name: Targeted packaging tests
         run: |
           python -m unittest discover -s tests -p 'test_release_launcher.py'
-          python -m unittest discover -s tests -p 'test_setup_sources.py'
+          python -m unittest discover -s tests -p 'test_source_adapters.py'
           python -m unittest discover -s tests -p 'test_distribution.py'
       - name: Archive safety and source-build regression tests
         if: runner.os == 'Linux'
