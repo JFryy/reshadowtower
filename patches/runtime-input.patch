@@ -1,0 +1,32 @@
+# source-sha256: bf0dbe2cf9abc12a05227f386c7e1de35af22a3d6d0bd9a17ab74d6cb05490fa
+--- a/psxrecomp/runtime/src/main.cpp
++++ b/psxrecomp/runtime/src/main.cpp
+@@ -87,2 +87,3 @@
+ #include "iso_reader.h"      /* text-image guard: extract the boot EXE from the disc */
++#include "modern_controls.h"
+ #include "psx_keybinds.h"    /* configurable keyboard->DualShock keybinds (keybinds.ini) */
+@@ -4447,3 +4448,3 @@
+     const Uint8* keys = SDL_GetKeyboardState(NULL);
+-    return psx_keybinds_pad_word(keys, player);
++    return shadowtower_pad_word(keys, player);
+ }
+@@ -5530,3 +5531,3 @@
+             SDL_Event ev;
+-            while (SDL_PollEvent(&ev)) {
++            while (shadowtower_poll_event(&ev)) {
+                 if (ev.type == SDL_QUIT) {
+@@ -6336,3 +6337,3 @@
+         SDL_Event ev;
+-        while (SDL_PollEvent(&ev)) {
++        while (shadowtower_poll_event(&ev)) {
+             if (ev.type == SDL_QUIT) {
+@@ -6380,3 +6381,3 @@
+         SDL_Event ev;
+-        while (SDL_PollEvent(&ev)) {
++        while (shadowtower_poll_event(&ev)) {
+             if (ev.type == SDL_QUIT) {
+@@ -6585,3 +6586,3 @@
+         SDL_Event ev;
+-        while (SDL_PollEvent(&ev)) {
++        while (shadowtower_poll_event(&ev)) {
+             if (ev.type == SDL_QUIT) {

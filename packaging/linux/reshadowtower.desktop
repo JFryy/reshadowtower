@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=ReShadowTower
+Comment=Shadow Tower with local disc setup
+Exec=AppRun
+Icon=reshadowtower
+Terminal=false
+Categories=Game;

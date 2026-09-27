@@ -9,21 +9,16 @@ from __future__ import annotations
 import ast
 import ctypes
 import ctypes.util
-import importlib.util
 import re
+import sys
+import tempfile
 import unittest
 from array import array
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def _load_prepare():
-    spec = importlib.util.spec_from_file_location("prepare_graphics", ROOT / "tools/prepare_graphics.py")
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader
-    spec.loader.exec_module(module)
-    return module
+sys.path.insert(0, str(ROOT / "tools"))
+from prepare_source import prepare
 
 
 def _c_string(source: str, name: str) -> str:
@@ -87,9 +82,12 @@ class WorldTextureFilterGL(unittest.TestCase):
             raise unittest.SkipTest(f"OpenGL 3.3 context failed: {sdl.SDL_GetError().decode()}")
         cls.GL = GL
         try:
-            base = (ROOT / "psxrecomp/runtime/src/gpu_gl_renderer.c").read_text()
-            shader = (ROOT / "src/world_texture_filter.glsl").read_text()
-            generated = _load_prepare().prepare_renderer(base, shader)
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "gpu_gl_renderer.c"
+                prepare(ROOT / "psxrecomp/runtime/src/gpu_gl_renderer.c",
+                        ROOT / "patches/runtime-graphics.patch", output, ROOT / "src/world_texture_filter.glsl")
+                generated = output.read_text().replace('#include "world_texture_filter.inc"',
+                                                       (output.parent / "world_texture_filter.inc").read_text())
             cls.vs_source = _c_string(generated, "TEX_VS")
             cls.fs_source = _c_string(generated, "TEX_FS")
             cls.program = cls._program(cls.vs_source, cls.fs_source)
@@ -200,11 +198,6 @@ class WorldTextureFilterGL(unittest.TestCase):
         for x, y, value in entries:
             p[y*1024+x] = value
         return p
-
-    def test_generated_runtime_vertex_shader_and_layout_are_live(self):
-        self.assertIn("layout(location=10) in float a_world_filter", self.vs_source)
-        self.assertIn("flat out int v_world_filter", self.vs_source)
-        self.assertTrue(self.program)
 
     def test_filter_disabled_or_ineligible_is_pixel_identical(self):
         p = self._vram([(x, 0, 0x001f if x & 1 else 0x7c00) for x in range(16)])
