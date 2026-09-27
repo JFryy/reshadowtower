@@ -13,9 +13,8 @@ No retail BIOS needed. OpenBIOS is included in the build.
 
 ## Install
 
-Release builds produce a Linux AppImage and Windows installer. Download your
-platform's artifact from a successful [release workflow run](https://github.com/JFryy/reshadowtower/actions/workflows/release.yml)
-and extract the ZIP.
+Download the Linux AppImage or Windows installer from the
+[releases page](https://github.com/JFryy/reshadowtower/releases).
 
 - **Linux:** make the `.AppImage` executable (`chmod +x ReShadowTower-*.AppImage`), then launch it.
 - **Windows:** run the `*-setup.exe` installer, then open ReShadowTower from the Start menu.
