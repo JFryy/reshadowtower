@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: offline-release
+  cancel-in-progress: false
+
 jobs:
   package:
     strategy:
@@ -86,3 +90,64 @@ jobs:
           name: ReShadowTower-${{ matrix.platform }}
           path: dist/artifacts/*
           if-no-files-found: error
+
+  draft-release:
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Download and verify release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download "$GITHUB_RUN_ID" --dir dist \
+            --name ReShadowTower-linux-x64 --name ReShadowTower-windows-x64
+          for platform in linux windows; do
+            (cd "dist/ReShadowTower-$platform-x64" && sha256sum -c -- *.sha256)
+          done
+      - name: Create draft release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(cat VERSION)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must be MAJOR.MINOR.PATCH." >&2
+            exit 1
+          fi
+          tag="v$version"
+          assets=(
+            "dist/ReShadowTower-linux-x64/ReShadowTower-$version-x86_64.AppImage"
+            "dist/ReShadowTower-linux-x64/ReShadowTower-$version-x86_64.AppImage.sha256"
+            "dist/ReShadowTower-windows-x64/ReShadowTower-$version-windows-x64-setup.exe"
+            "dist/ReShadowTower-windows-x64/ReShadowTower-$version-windows-x64-setup.exe.sha256"
+          )
+          for asset in "${assets[@]}"; do test -s "$asset"; done
+          existing=$(gh api "repos/$GH_REPO/releases" --paginate | jq -r --arg tag "$tag" \
+            '.[] | select(.tag_name == $tag) | [.draft, .target_commitish] | @tsv')
+          if [[ -n "$(git ls-remote --tags origin "refs/tags/$tag")" ]]; then
+            git fetch origin "refs/tags/$tag"
+            if [[ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$GITHUB_SHA" ]]; then
+              echo "$tag points to another commit. Bump VERSION before releasing." >&2
+              exit 1
+            fi
+          fi
+          if [[ -n "$existing" ]]; then
+            if [[ "$existing" != "$(printf 'true\t%s' "$GITHUB_SHA")" ]]; then
+              echo "$tag is published or targets another commit. Bump VERSION or remove the obsolete draft." >&2
+              exit 1
+            fi
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" "${assets[@]}" --draft --target "$GITHUB_SHA" \
+              --title "ReShadowTower $tag" --generate-notes \
+              --notes "Linux: make the AppImage executable and launch it. Windows: run the installer. First-run setup requires your own Shadow Tower (USA) BIN/CUE dump; build tools are bundled."
+          fi
+          gh release view "$tag" --json url --jq '"Draft release: " + .url' >> "$GITHUB_STEP_SUMMARY"
