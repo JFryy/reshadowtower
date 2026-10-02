@@ -86,7 +86,9 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
             raise ValueError("Bundled Windows SDL3 SDK is missing; re-extract the pinned toolchain.")
     launcher_options = [f"-DSDL3_DIR={sdl_config}"]
     configure(source / "launcher", host, launcher_options)
-    compile(host, ["shadowtower-launcher"])
+    compile(host, ["shadowtower-launcher", "launcher-model-tests", "launcher-bindings-tests"])
+    for test in ("launcher-model-tests", "launcher-bindings-tests"):
+        run([str(host / (test + suffix))], env)
     binaries = {name: emitters / name for name in
                 ("psxrecomp-game" + suffix, "psxrecomp-bios" + suffix)}
     binaries["shadowtower-launcher" + suffix] = host / ("shadowtower-launcher" + suffix)

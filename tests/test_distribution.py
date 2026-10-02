@@ -65,6 +65,28 @@ class DistributionTests(unittest.TestCase):
         self.assertEqual([path for path in exported if "launcher" not in path.parts], paths[1:4])
         self.assertTrue(any(path.name == "CMakeLists.txt" and "launcher" in path.parts for path in exported))
         self.assertFalse(any("recomp-ui" in path.parts for path in exported))
+        for name in ("artwork.hpp", "bindings.hpp", "bindings_tests.cpp"):
+            self.assertIn(root / "launcher" / name, exported)
+
+    def test_launcher_keeps_fixed_cover_and_retro_font(self):
+        root = package_release.ROOT
+        source = (root / "launcher/main.cpp").read_text()
+        self.assertIn('workspacePath / "assets/setup/boxart.tga"', source)
+        self.assertIn("AddFontDefault(&fontConfig)", source)
+        self.assertNotIn("Choose artwork", source)
+        self.assertNotIn("artBrowse", source)
+        self.assertIn("assets/setup/boxart.tga", package_release.PROJECT_FILES)
+
+    def test_native_build_explicitly_disables_upstream_ui_without_submodule(self):
+        root = package_release.ROOT
+        self.assertNotIn("recomp-ui", (root / ".gitmodules").read_text())
+        cmake = (root / "CMakeLists.txt").read_text()
+        disable = cmake.index("set(PSX_RECOMP_UI OFF CACHE BOOL")
+        upstream = cmake.index('include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")')
+        self.assertLess(disable, upstream)
+        self.assertNotIn("cmake/setup.cmake", cmake)
+        for path in package_release.PROJECT_FILES:
+            self.assertTrue((root / path).is_file(), path)
 
 
 if __name__ == "__main__":

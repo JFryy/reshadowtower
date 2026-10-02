@@ -27,7 +27,7 @@ PROJECT_FILES = (
     "cmake/adapters.cmake", "patches/runtime-input.patch", "patches/runtime-graphics.patch",
     "patches/runtime-widescreen.patch",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",
-    "assets/setup/music.wav",
+    "assets/setup/boxart.tga", "assets/setup/music.wav",
 )
 
 
@@ -49,7 +49,8 @@ def tracked_files(repo: Path) -> Iterator[Path]:
 
 def source_files() -> Iterator[Path]:
     yield from (ROOT / name for name in PROJECT_FILES)
-    for name in ("CMakeLists.txt", "main.cpp", "model.hpp", "model_tests.cpp"):
+    for name in ("CMakeLists.txt", "main.cpp", "model.hpp", "model_tests.cpp",
+                 "artwork.hpp", "bindings.hpp", "bindings_tests.cpp"):
         yield ROOT / "launcher" / name
     yield from (path for path in sorted((ROOT / "launcher/vendor/imgui").rglob("*"))
                 if path.is_file() and (path.suffix in (".cpp", ".h") or path.name == "LICENSE.txt"))

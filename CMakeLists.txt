@@ -5,7 +5,8 @@ set(PSXRECOMP_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/psxrecomp" CACHE PATH "PSXRecomp
 if(NOT EXISTS "${PSXRECOMP_ROOT}/runtime/runtime.cmake")
     message(FATAL_ERROR "Missing PSXRecomp. Run: git submodule update --init --recursive")
 endif()
-set(PSX_RECOMP_UI OFF CACHE BOOL "Disable recomp-ui; the release uses the standalone launcher" FORCE)
+# Upstream defaults to its optional UI; this title always uses its own launcher.
+set(PSX_RECOMP_UI OFF CACHE BOOL "Use the title-owned native launcher" FORCE)
 include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")
 include(cmake/adapters.cmake)
 include(cmake/graphics.cmake)
