@@ -59,6 +59,7 @@ jobs:
       - name: Targeted packaging tests
         run: |
           python -m unittest discover -s tests -p 'test_release_launcher.py'
+          python -m unittest discover -s tests -p 'test_launcher_backend.py'
           python -m unittest discover -s tests -p 'test_source_adapters.py'
           python -m unittest discover -s tests -p 'test_distribution.py'
       - name: Archive safety and emitter discovery tests
@@ -67,13 +68,14 @@ jobs:
           python -m unittest discover -s tests -p 'test_bundled_toolchain.py'
           python -m unittest discover -s tests -p 'test_bundled_sdl.py'
           python -m unittest discover -s tests -p 'test_generate_aot.py'
-      - name: Build without game data
+      - name: Build offline release tools without game data
         run: |
           extra=()
           if [[ '${{ matrix.platform }}' == linux-x64 ]]; then extra+=(--sdl-archive build-inputs/SDL3-3.4.16.tar.gz); fi
           python tools/build_release.py --toolchain-archive build-inputs/toolchain.zip --output build-offline "${extra[@]}"
-      - name: Stage verified package
+      - name: Stage verified package from release metadata
         run: |
+          test -s "build-offline/host/shadowtower-launcher$(if [[ '${{ matrix.platform }}' == windows-x64 ]]; then printf .exe; fi)"
           extra=()
           if [[ '${{ matrix.platform }}' == windows-x64 ]]; then
             extra+=(--windows-launcher build-offline/launcher/ReShadowTower.exe)

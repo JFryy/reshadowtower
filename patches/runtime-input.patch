@@ -30,3 +30,51 @@
 -        while (SDL_PollEvent(&ev)) {
 +        while (shadowtower_poll_event(&ev)) {
              if (ev.type == SDL_QUIT) {
+@@ -7170,2 +7171,7 @@
+         fmv_frame = di.depth24 || !g_ws_engaged || gpu_ws_present_native_43() != 0;
++        /* Keep menus full-width without changing their authored geometry.
++         * Match the GPU's 30-frame MDEC guard so movies remain native 4:3. */
++        const bool stretch_menu = g_ws_engaged && fmv_frame && !di.depth24 &&
++            g_video_aspect_num * 3 > g_video_aspect_den * 4 &&
++            !mdec_recently_active(30);
+         /* MDEC movies are already decoded at their authored cadence and are
+@@ -7212,3 +7218,3 @@
+         PresRingEntry* pres_entry = present_ring_commit(
+-            fmv_frame ? PRES_PATH_NATIVE_43
++            (fmv_frame && !stretch_menu) ? PRES_PATH_NATIVE_43
+                       : (wide_present ? PRES_PATH_WIDE : PRES_PATH_CANONICAL),
+@@ -7242,3 +7248,3 @@
+                                          (int)present_w, (int)h, g_video_aa ? 1 : 0,
+-                                         (fmv_frame || nw_pin) ? 1 : 0);
++                                         ((fmv_frame || nw_pin) && !stretch_menu) ? 1 : 0);
+                 netplay_note_present();
+@@ -7269,3 +7275,3 @@
+                                          (int)present_w, (int)h, g_video_aa ? 1 : 0,
+-                                         (fmv_frame || nw_pin) ? 1 : 0);
++                                         ((fmv_frame || nw_pin) && !stretch_menu) ? 1 : 0);
+             }
+@@ -7315,3 +7321,3 @@
+          * when fmv_frame is false on a plain 4:3 window (ws layer not engaged). */
+-        pin_43 = fmv_frame || di.depth24 || (nw_pin && !wide_present);
++        pin_43 = (fmv_frame || di.depth24 || (nw_pin && !wide_present)) && !stretch_menu;
+         if (!wide_present) {
+@@ -12289,8 +12295,6 @@
+     bool ctrl_lock_device  = false; /* game.toml [controller] lock_device; true hides the Player controller cards entirely */
+-    /* Widescreen/View mode and Skip FMVs are mod-owned on PSX. Their legacy
+-     * game.toml offer flags remain parseable for old projects but deliberately
+-     * cannot expose generic launcher controls or activate the features. Trusted
+-     * activation plugins apply them after launcher/settings resolution. */
+-    constexpr bool ws_offered = false;
+-    constexpr bool ws_ultrawide_offered = false;
++    /* The title-owned launcher exposes opt-in experimental widescreen.
++     * Other upstream mod-owned features retain their existing policy. */
++    constexpr bool ws_offered = true;
++    constexpr bool ws_ultrawide_offered = true;
+     constexpr bool frame_interpolation_offered = false;
+@@ -13059,2 +13063,6 @@
+      * PSX_FRAME_INTERPOLATION=0/1; PSX_FRAME_INTERPOLATION_FPS=0|90+. */
++    /* The standalone launcher validates and persists this title preference. */
++    if (const char *volume = std::getenv("SHADOWTOWER_VOLUME"))
++        host_volume_set(std::atoi(volume));
++
+     if (const char *e = std::getenv("PSX_LOW_LATENCY_INPUT")) g_low_latency_input = atoi(e) ? 1 : 0;

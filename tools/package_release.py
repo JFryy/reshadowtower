@@ -20,33 +20,15 @@ from release_common import file_hash, file_hashes
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_FILES = (
     "CMakeLists.txt", "game.toml", "config.ini", "VERSION", "LICENSE",
-    "codegen_setup.c", "codegen_setup.h", "cmake/graphics.cmake", "cmake/input.cmake",
+    "cmake/graphics.cmake", "cmake/input.cmake",
     "src/modern_controls.c", "src/modern_controls.h", "src/world_texture_filter.glsl",
     "seeds/ghidra_funcs.txt", "tools/prepare_source.py", "tools/release_cli.py", "tools/generate_aot.py",
-    "tools/release_common.py",
+    "tools/release_common.py", "tools/launcher_backend.py",
     "cmake/adapters.cmake", "patches/runtime-input.patch", "patches/runtime-graphics.patch",
-    "patches/setup-host.patch", "patches/setup-ui.patch",
+    "patches/runtime-widescreen.patch",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",
-    "cmake/setup.cmake", "src/setup_music.cpp", "src/setup_music.h",
-    "src/setup_music_ui.cpp", "src/setup_music_ui.h",
-    "assets/setup/boxart.tga", "assets/setup/music.wav",
+    "assets/setup/music.wav",
 )
-
-
-def validate_sources(manifest: Path, project: Path) -> None:
-    if not manifest.is_file():
-        raise ValueError(f"Missing {manifest}; configure a setup-host build first.")
-    sources = [Path(line) for line in manifest.read_text(encoding="utf-8").splitlines() if line]
-    resolved = [(source if source.is_absolute() else project / source).resolve() for source in sources]
-    for source in resolved:
-        if "generated" in source.parts:
-            raise ValueError(f"Setup host links generated code: {source}. Refusing packaging.")
-    required = manifest.resolve().parent / "setup/psxrecomp_codegen_host.c"
-    original = project.resolve() / "psxrecomp/host/psxrecomp_codegen_host.c"
-    if original in resolved:
-        raise ValueError("Setup host links the unrestricted upstream toolchain installer.")
-    if required not in resolved:
-        raise ValueError("Setup host is missing the first-run codegen implementation.")
 
 
 def tracked_files(repo: Path) -> Iterator[Path]:
@@ -67,7 +49,11 @@ def tracked_files(repo: Path) -> Iterator[Path]:
 
 def source_files() -> Iterator[Path]:
     yield from (ROOT / name for name in PROJECT_FILES)
-    for module in ("psxrecomp", "recomp-ui"):
+    for name in ("CMakeLists.txt", "main.cpp", "model.hpp", "model_tests.cpp"):
+        yield ROOT / "launcher" / name
+    yield from (path for path in sorted((ROOT / "launcher/vendor/imgui").rglob("*"))
+                if path.is_file() and (path.suffix in (".cpp", ".h") or path.name == "LICENSE.txt"))
+    for module in ("psxrecomp",):
         for source in tracked_files(ROOT / module):
             relative = source.relative_to(ROOT)
             # Never collect ignored local output, test dumps, or generated game code.
@@ -89,7 +75,8 @@ def copy_sources(destination: Path) -> None:
 
 
 def source_fingerprint() -> str:
-    files = list(source_files()) + [ROOT / "tools/launch_release.py", ROOT / "tools/build_bundled_sdl.py"]
+    files = list(source_files()) + [ROOT / "tools/launch_release.py",
+                                    ROOT / "tools/build_bundled_sdl.py"]
     files += sorted((ROOT / "packaging").rglob("*"))
     digest = hashlib.sha256()
     for path in sorted(set(files)):
@@ -102,7 +89,7 @@ def source_fingerprint() -> str:
 def validate_build(args: argparse.Namespace) -> None:
     stamp = json.loads((args.build / "release-build.json").read_text(encoding="utf-8"))
     if stamp["source_fingerprint"] != source_fingerprint():
-        raise ValueError("Sources changed since the setup-host build. Run tools/build_release.py in a new output directory.")
+        raise ValueError("Sources changed since the release build. Run tools/build_release.py in a new output directory.")
     if stamp["platform"] != args.platform or stamp["toolchain_sha256"] != PINS[args.platform][1]:
         raise ValueError("Build platform or bundled toolchain does not match the package.")
     if args.platform == "linux-x64":
@@ -112,8 +99,8 @@ def validate_build(args: argparse.Namespace) -> None:
         if build_bundled_sdl.hashes(Path(sdl["prefix"])) != sdl["files"]:
             raise ValueError("Bundled SDL files differ from verified build")
     suffix = ".exe" if args.platform == "windows-x64" else ""
-    binaries = {"Shadow_Tower_Recompiled" + suffix: args.build / ("Shadow_Tower_Recompiled" + suffix)}
-    binaries.update({name + suffix: args.emitters / (name + suffix) for name in ("psxrecomp-game", "psxrecomp-bios")})
+    binaries = {name + suffix: args.emitters / (name + suffix) for name in ("psxrecomp-game", "psxrecomp-bios")}
+    binaries["shadowtower-launcher" + suffix] = args.build / ("shadowtower-launcher" + suffix)
     if suffix:
         if args.windows_launcher is None:
             raise ValueError("Windows packaging requires --windows-launcher.")
@@ -140,15 +127,6 @@ def stage(args: argparse.Namespace) -> None:
             shutil.copytree(sdl["prefix"], payload / "bundled-sdl")
             if build_bundled_sdl.hashes(payload / "bundled-sdl") != sdl["files"]:
                 raise ValueError("Staged SDL files differ from verified build")
-        executable = "Shadow_Tower_Recompiled" + suffix
-        shutil.copy2(args.build / executable, payload / executable)
-        shutil.copytree(args.build / "assets", payload / "assets", dirs_exist_ok=True)
-        bundled = args.build / "mods/bundled"
-        if bundled.is_symlink():
-            raise ValueError("Bundled mod catalog must not be a symlink")
-        if any(path.is_symlink() for path in bundled.rglob("*")):
-            raise ValueError("Bundled mod catalog contains a symlink")
-        shutil.copytree(bundled, payload / "mods/bundled")
         for name in ("psxrecomp-game", "psxrecomp-bios"):
             destination = payload / "psxrecomp/recompiler/build" / (name + suffix)
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -168,6 +146,7 @@ def stage(args: argparse.Namespace) -> None:
         (staging / "release.json").write_text(json.dumps(metadata, sort_keys=True, indent=2) + "\n", encoding="utf-8")
         for name in ("launch_release.py", "release_common.py"):
             shutil.copy2(ROOT / "tools" / name, staging / name)
+        shutil.copy2(args.build / ("shadowtower-launcher" + suffix), staging / ("shadowtower-launcher" + suffix))
         py_relative = python.relative_to(staging).as_posix()
         if suffix:
             if args.windows_launcher is None:
@@ -192,7 +171,6 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
-        validate_sources(args.build / "setup-sources.txt", ROOT)
         validate_build(args)
         if args.output.exists() or args.output.is_symlink():
             raise ValueError(f"Refusing to replace existing package: {args.output}")

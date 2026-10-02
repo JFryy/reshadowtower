@@ -56,6 +56,11 @@ geometry_correction = true
 perspective_texturing = true
 pgxp_tolerance = 1.0
 
+[widescreen]
+# Shadow Tower projects 3D geometry but has no sprite-tag gameplay hooks.
+# Without this detector, even gameplay is treated as a 4:3 menu.
+gte_game_mode = true
+
 [controller]
 default_mode = "digital"
 

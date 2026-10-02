@@ -19,9 +19,9 @@ class DistributionTests(unittest.TestCase):
             emitters = root / "emitters"
             build.mkdir()
             emitters.mkdir()
-            paths = {"Shadow_Tower_Recompiled": build / "Shadow_Tower_Recompiled",
-                     "psxrecomp-game": emitters / "psxrecomp-game",
+            paths = {"psxrecomp-game": emitters / "psxrecomp-game",
                      "psxrecomp-bios": emitters / "psxrecomp-bios"}
+            paths["shadowtower-launcher"] = build / "shadowtower-launcher"
             for path in paths.values():
                 path.write_bytes(b"built binary")
             from bundled_toolchain import PINS
@@ -44,6 +44,10 @@ class DistributionTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Binary differs"):
                     package_release.validate_build(args)
                 paths["psxrecomp-game"].write_bytes(b"built binary")
+                paths["shadowtower-launcher"].write_bytes(b"tampered launcher")
+                with self.assertRaisesRegex(ValueError, "Binary differs"):
+                    package_release.validate_build(args)
+                paths["shadowtower-launcher"].write_bytes(b"built binary")
                 (sdl / "libSDL3.a").write_bytes(b"tampered SDL")
                 with self.assertRaisesRegex(ValueError, "Bundled SDL files differ"):
                     package_release.validate_build(args)
@@ -58,28 +62,9 @@ class DistributionTests(unittest.TestCase):
         with mock.patch.object(package_release, "PROJECT_FILES", ()), \
              mock.patch.object(package_release, "tracked_files", side_effect=lambda repo: paths if repo.name == "psxrecomp" else []):
             exported = list(package_release.source_files())
-        self.assertEqual(exported, paths[1:4])
-
-    def test_setup_source_manifest(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            manifest = root / "setup-sources.txt"
-            host = str(root / "setup/psxrecomp_codegen_host.c")
-            for extra in ("src/modern_controls.c", ""):
-                manifest.write_text(host + "\n" + extra + "\n")
-                package_release.validate_sources(manifest, root)
-            for extra, message in (("generated/aot/overlays_static.c", "generated code"),
-                                   ("psxrecomp/generated/SCPH1001_full.c", "generated code"),
-                                   ("psxrecomp/host/psxrecomp_codegen_host.c", "unrestricted")):
-                manifest.write_text(host + "\n" + extra + "\n")
-                with self.assertRaisesRegex(ValueError, message):
-                    package_release.validate_sources(manifest, root)
-            manifest.write_text("src/modern_controls.c\n")
-            with self.assertRaisesRegex(ValueError, "first-run"):
-                package_release.validate_sources(manifest, root)
-            manifest.unlink()
-            with self.assertRaisesRegex(ValueError, "Missing"):
-                package_release.validate_sources(manifest, root)
+        self.assertEqual([path for path in exported if "launcher" not in path.parts], paths[1:4])
+        self.assertTrue(any(path.name == "CMakeLists.txt" and "launcher" in path.parts for path in exported))
+        self.assertFalse(any("recomp-ui" in path.parts for path in exported))
 
 
 if __name__ == "__main__":

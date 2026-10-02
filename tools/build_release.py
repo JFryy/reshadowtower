@@ -13,7 +13,7 @@ import sys
 import bundled_toolchain
 import build_bundled_sdl
 import package_release
-from release_common import OFFLINE_CMAKE_OPTIONS, file_hash
+from release_common import file_hash
 
 
 def native_platform() -> str:
@@ -77,21 +77,24 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
     configure(source / "psxrecomp/recompiler", emitters, ["-DPSXRECOMP_STATIC_CLI=ON"])
     compile(emitters, ["psxrecomp-game", "psxrecomp-bios"])
     host = output / "host"
-    host_options = ["-DPSXRECOMP_FORCE_SETUP_HOST=ON", *OFFLINE_CMAKE_OPTIONS]
     if target == "linux-x64":
-        host_options.append(f"-DSDL3_DIR={sdl / 'lib/cmake/SDL3'}")
-    configure(source, host, host_options)
-    compile(host, ["psx-runtime"])
-    binaries = {name: path for name, path in (
-        ("Shadow_Tower_Recompiled" + suffix, host / ("Shadow_Tower_Recompiled" + suffix)),
-        ("psxrecomp-game" + suffix, emitters / ("psxrecomp-game" + suffix)),
-        ("psxrecomp-bios" + suffix, emitters / ("psxrecomp-bios" + suffix)),
-    )}
+        sdl_config = sdl / "lib/cmake/SDL3"
+    else:
+        candidates = [pack / "deps/lib/cmake/SDL3", pack / "lib/cmake/SDL3"]
+        sdl_config = next((path for path in candidates if (path / "SDL3Config.cmake").is_file()), None)
+        if sdl_config is None:
+            raise ValueError("Bundled Windows SDL3 SDK is missing; re-extract the pinned toolchain.")
+    launcher_options = [f"-DSDL3_DIR={sdl_config}"]
+    configure(source / "launcher", host, launcher_options)
+    compile(host, ["shadowtower-launcher"])
+    binaries = {name: emitters / name for name in
+                ("psxrecomp-game" + suffix, "psxrecomp-bios" + suffix)}
+    binaries["shadowtower-launcher" + suffix] = host / ("shadowtower-launcher" + suffix)
     if suffix:
-        launcher = output / "launcher"
-        configure(source / "packaging/windows", launcher, [])
-        compile(launcher, ["ReShadowTower"])
-        binaries["ReShadowTower.exe"] = launcher / "ReShadowTower.exe"
+        wrapper = output / "launcher"
+        configure(source / "packaging/windows", wrapper, [])
+        compile(wrapper, ["ReShadowTower"])
+        binaries["ReShadowTower.exe"] = wrapper / "ReShadowTower.exe"
     hashes = {name: file_hash(path) for name, path in binaries.items()}
     if package_release.source_fingerprint() != fingerprint:
         raise ValueError("Source fingerprint changed during build; discard this output and retry")
