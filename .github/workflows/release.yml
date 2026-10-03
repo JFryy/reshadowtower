@@ -61,6 +61,7 @@ jobs:
           python -m unittest discover -s tests -p 'test_release_launcher.py'
           python -m unittest discover -s tests -p 'test_launcher_backend.py'
           python -m unittest discover -s tests -p 'test_source_adapters.py'
+          python -m unittest discover -s tests -p 'test_render_scale.py'
           SDL_VIDEO_DRIVER=offscreen python -m unittest discover -s tests -p 'test_post_processing.py'
           python -m unittest discover -s tests -p 'test_distribution.py'
       - name: Archive safety and emitter discovery tests

@@ -1,36 +1,47 @@
 # source-sha256: bf0dbe2cf9abc12a05227f386c7e1de35af22a3d6d0bd9a17ab74d6cb05490fa
 --- a/psxrecomp/runtime/src/main.cpp
 +++ b/psxrecomp/runtime/src/main.cpp
-@@ -87,2 +87,3 @@
+@@ -87,2 +87,4 @@
  #include "iso_reader.h"      /* text-image guard: extract the boot EXE from the disc */
 +#include "modern_controls.h"
++#include "render_scale.h"
  #include "psx_keybinds.h"    /* configurable keyboard->DualShock keybinds (keybinds.ini) */
-@@ -4447,3 +4448,3 @@
+@@ -1948,3 +1950,3 @@
+         int want = g_video_scale < 1 ? 1 : g_video_scale;
+-        if (want > SW_MAX_INTERNAL_SCALE) want = SW_MAX_INTERNAL_SCALE;
++        if (want > SHADOWTOWER_MAX_INTERNAL_SCALE) want = SHADOWTOWER_MAX_INTERNAL_SCALE;
+         gr_set_backend(GR_BACKEND_OPENGL);
+@@ -1989,3 +1991,3 @@
+         int want = g_video_scale < 1 ? 1 : g_video_scale;
+-        if (want > SW_MAX_INTERNAL_SCALE) want = SW_MAX_INTERNAL_SCALE;
++        if (want > SHADOWTOWER_MAX_INTERNAL_SCALE) want = SHADOWTOWER_MAX_INTERNAL_SCALE;
+         gr_set_backend(GR_BACKEND_OPENGL);
+@@ -4447,3 +4449,3 @@
      const Uint8* keys = SDL_GetKeyboardState(NULL);
 -    return psx_keybinds_pad_word(keys, player);
 +    return shadowtower_pad_word(keys, player);
  }
-@@ -5530,3 +5531,3 @@
+@@ -5530,3 +5532,3 @@
              SDL_Event ev;
 -            while (SDL_PollEvent(&ev)) {
 +            while (shadowtower_poll_event(&ev)) {
                  if (ev.type == SDL_QUIT) {
-@@ -6336,3 +6337,3 @@
+@@ -6336,3 +6338,3 @@
          SDL_Event ev;
 -        while (SDL_PollEvent(&ev)) {
 +        while (shadowtower_poll_event(&ev)) {
              if (ev.type == SDL_QUIT) {
-@@ -6380,3 +6381,3 @@
+@@ -6380,3 +6382,3 @@
          SDL_Event ev;
 -        while (SDL_PollEvent(&ev)) {
 +        while (shadowtower_poll_event(&ev)) {
              if (ev.type == SDL_QUIT) {
-@@ -6585,3 +6586,3 @@
+@@ -6585,3 +6587,3 @@
          SDL_Event ev;
 -        while (SDL_PollEvent(&ev)) {
 +        while (shadowtower_poll_event(&ev)) {
              if (ev.type == SDL_QUIT) {
-@@ -7170,2 +7171,7 @@
+@@ -7170,2 +7172,7 @@
          fmv_frame = di.depth24 || !g_ws_engaged || gpu_ws_present_native_43() != 0;
 +        /* Keep menus full-width without changing their authored geometry.
 +         * Match the GPU's 30-frame MDEC guard so movies remain native 4:3. */
@@ -38,27 +49,32 @@
 +            g_video_aspect_num * 3 > g_video_aspect_den * 4 &&
 +            !mdec_recently_active(30);
          /* MDEC movies are already decoded at their authored cadence and are
-@@ -7212,3 +7218,3 @@
+@@ -7212,3 +7219,3 @@
          PresRingEntry* pres_entry = present_ring_commit(
 -            fmv_frame ? PRES_PATH_NATIVE_43
 +            (fmv_frame && !stretch_menu) ? PRES_PATH_NATIVE_43
                        : (wide_present ? PRES_PATH_WIDE : PRES_PATH_CANONICAL),
-@@ -7242,3 +7248,3 @@
+@@ -7242,3 +7249,3 @@
                                           (int)present_w, (int)h, g_video_aa ? 1 : 0,
 -                                         (fmv_frame || nw_pin) ? 1 : 0);
 +                                         ((fmv_frame || nw_pin) && !stretch_menu) ? 1 : 0);
                  netplay_note_present();
-@@ -7269,3 +7275,3 @@
+@@ -7269,3 +7276,3 @@
                                           (int)present_w, (int)h, g_video_aa ? 1 : 0,
 -                                         (fmv_frame || nw_pin) ? 1 : 0);
 +                                         ((fmv_frame || nw_pin) && !stretch_menu) ? 1 : 0);
              }
-@@ -7315,3 +7321,3 @@
+@@ -7315,3 +7322,3 @@
           * when fmv_frame is false on a plain 4:3 window (ws layer not engaged). */
 -        pin_43 = fmv_frame || di.depth24 || (nw_pin && !wide_present);
 +        pin_43 = (fmv_frame || di.depth24 || (nw_pin && !wide_present)) && !stretch_menu;
          if (!wide_present) {
-@@ -12289,8 +12295,6 @@
+@@ -7440,3 +7447,3 @@
+     if (src_w > 0 && src_h > 0 && src_h < tex_h) {
+-        static uint32_t s_black_pad[640 * 4]; /* covers g_video_scale <= 4 */
++        static uint32_t s_black_pad[640 * SHADOWTOWER_MAX_INTERNAL_SCALE];
+         const int pad_cap = (int)(sizeof(s_black_pad) / sizeof(s_black_pad[0]));
+@@ -12289,8 +12296,6 @@
      bool ctrl_lock_device  = false; /* game.toml [controller] lock_device; true hides the Player controller cards entirely */
 -    /* Widescreen/View mode and Skip FMVs are mod-owned on PSX. Their legacy
 -     * game.toml offer flags remain parseable for old projects but deliberately
@@ -71,10 +87,15 @@
 +    constexpr bool ws_offered = true;
 +    constexpr bool ws_ultrawide_offered = true;
      constexpr bool frame_interpolation_offered = false;
-@@ -13059,2 +13063,6 @@
+@@ -13059,2 +13064,6 @@
       * PSX_FRAME_INTERPOLATION=0/1; PSX_FRAME_INTERPOLATION_FPS=0|90+. */
 +    /* The standalone launcher validates and persists this title preference. */
 +    if (const char *volume = std::getenv("SHADOWTOWER_VOLUME"))
 +        host_volume_set(std::atoi(volume));
 +
      if (const char *e = std::getenv("PSX_LOW_LATENCY_INPUT")) g_low_latency_input = atoi(e) ? 1 : 0;
+@@ -14453,3 +14462,3 @@
+     if (g_video_scale < 1) g_video_scale = 1;
+-    if (g_video_scale > SW_MAX_INTERNAL_SCALE) g_video_scale = SW_MAX_INTERNAL_SCALE;
++    if (g_video_scale > SHADOWTOWER_MAX_INTERNAL_SCALE) g_video_scale = SHADOWTOWER_MAX_INTERNAL_SCALE;
+     if (net_cfg.enabled && s_netplay_gl_present && gl_renderer_cpu_auth_dual()) {

@@ -16,7 +16,7 @@ from prepare_source import apply_patch, prepare
 
 class SourceAdapterTests(unittest.TestCase):
     def test_title_patches_apply_to_pinned_sources(self):
-        for name in ("runtime-input", "runtime-graphics", "runtime-widescreen"):
+        for name in ("runtime-input", "runtime-graphics", "runtime-widescreen", "runtime-settings", "runtime-software"):
             with self.subTest(patch=name):
                 text = (ROOT / "patches" / f"{name}.patch").read_text(encoding="utf-8")
                 source = (ROOT / text.splitlines()[1].removeprefix("--- a/")).read_text(encoding="utf-8-sig")

@@ -1,12 +1,17 @@
 # source-sha256: 2978b43a207210fa6f258b519c3a07360664c31d3490fa9e5583c04e777f18c9
 --- a/psxrecomp/runtime/src/gpu_gl_renderer.c
 +++ b/psxrecomp/runtime/src/gpu_gl_renderer.c
-@@ -376,3 +376,3 @@
+@@ -130,2 +130,3 @@
+ #define VRAM_H 512
+-#define GL_MAX_INTERNAL_SCALE 4
++#include "render_scale.h"
++#define GL_MAX_INTERNAL_SCALE SHADOWTOWER_MAX_INTERNAL_SCALE
+@@ -376,3 +377,3 @@
   * pre-feature pipeline. */
 -#define TEXV 20
 +#define TEXV 21
  static GLuint s_blit_prog = 0, s_blit_vao = 0, s_blit_vbo = 0;
-@@ -949,4 +949,8 @@
+@@ -949,4 +950,8 @@
      PSX_SCANLINE_FUNC
 +    "vec4 postfx_sample(vec2 uv){ return texture(u_tex, uv); }\n"
 +    "ivec2 postfx_size(){ return textureSize(u_tex, 0); }\n"
@@ -16,12 +21,12 @@
 +    "  vec2 uv = postfx_uv(v_uv);\n"
 +    "  if (postfx_outside(uv)) { frag = vec4(0.0, 0.0, 0.0, 1.0); return; }\n"
      "  vec4 c;\n"
-@@ -969,3 +973,3 @@
+@@ -969,3 +974,3 @@
      "  c.rgb = psx_scanline(c.rgb, v_uv.y);\n"
 -    "  frag = c;\n"
 +    "  frag = postfx_apply(c, uv);\n"
      "}\n";
-@@ -975,6 +979,7 @@
+@@ -975,6 +980,7 @@
      "uniform float u_alpha; uniform int u_blend_mode; out vec4 frag;\n"
 +    "uniform vec4 u_uv_rect;\n"
      PSX_SCANLINE_UNIFORMS
@@ -31,7 +36,7 @@
 +    "vec4 postfx_sample(vec2 uv){\n"
 +    "  vec4 prev=texture(u_prev,uv), curr=texture(u_curr,uv);\n"
      "  float alpha=u_alpha;\n"
-@@ -986,5 +991,12 @@
+@@ -986,5 +992,12 @@
      "  }\n"
 -    "  vec4 c=mix(prev,curr,alpha);\n"
 -    "  c.rgb=psx_scanline(c.rgb, v_uv.y);\n"
@@ -47,24 +52,24 @@
 +    "  c.rgb = psx_scanline(c.rgb, v_uv.y);\n"
 +    "  frag = postfx_apply(c, uv);\n"
      "}\n";
-@@ -1050,2 +1062,4 @@
+@@ -1050,2 +1063,4 @@
      "layout(location=9) in float a_q;   /* persp weight; 0 = affine (default) */\n"
 +    "layout(location=10) in float a_world_filter;\n"
 +    "flat out int v_world_filter;\n"
      "uniform float u_shift;\n"
-@@ -1062,2 +1076,3 @@
+@@ -1062,2 +1077,3 @@
      "  v_persp = (a_q > 0.0) ? 1 : 0;\n"
 +    "  v_world_filter = int(a_world_filter);\n"
      "  v_tpage = ivec2(a_tpage + 0.5); v_clut = ivec2(a_clut + 0.5);\n"
-@@ -1085,2 +1100,3 @@
+@@ -1085,2 +1101,3 @@
      "smooth in vec2 v_uv_p; flat in int v_persp;\n"
 +    "flat in int v_world_filter;\n"
      "out vec4 frag; out vec4 blend_factor;\n"
-@@ -1123,2 +1139,3 @@
+@@ -1123,2 +1140,3 @@
      "}\n"
 +#include "world_texture_filter.inc"
      "void main(){\n"
-@@ -1129,35 +1146,8 @@
+@@ -1129,35 +1147,8 @@
      "  vec2 uv = (v_persp != 0) ? v_uv_p : v_uv;\n"
 -    "  if (u_filter == 0) {\n"
 -    "    int raw = fetch_texel(int(floor(uv.x)), int(floor(uv.y)));\n"
@@ -106,22 +111,22 @@
 +    "  rgb = (u_filter != 0 && v_world_filter != 0)\n"
 +    "      ? world_filter(uv, dx, dy, raw) : col5(raw);\n"
      "  if (u_semipass == 1 && stp == 1) discard;\n"
-@@ -2027,2 +2017,5 @@
+@@ -2027,2 +2018,5 @@
                                    int semi, const int *lim) {
 +    /* Rectangles carry explicit limits. Only modulated, opaque polygons
 +     * with validated subpixel positions qualify, not raw sprites/UI. */
 +    const int world_filter = !lim && s_pc_valid && !rawtex && semi < 0;
      int lim_buf[4];
-@@ -2112,2 +2105,3 @@
+@@ -2112,2 +2106,3 @@
              vp[19] = s_pq_valid ? s_pq[i] : 0.0f;                   /* a_q; 0 = affine */
 +            vp[20] = (float)world_filter;
          }
-@@ -2679,2 +2673,4 @@
+@@ -2679,2 +2674,4 @@
   * every content draw must state its own choice. */
 +#include "post_processing_gl.h"
 +
  static void present_set_scanline(GLint uOn, GLint uStr, GLint uLines,
-@@ -2691,9 +2687,13 @@
+@@ -2691,9 +2688,13 @@
  }
 -#define PRESENT_SCANLINE(pitch, disp, oh)                                   \
 -    present_set_scanline(s_present_uScanline, s_present_uScanStrength,      \
@@ -143,11 +148,36 @@
 +                         (pitch), (disp), (oh)); \
 +    shadowtower_postfx_upload(1, s_interp_prog, (pitch) / s_scale, (disp) / s_scale, (oh)); \
 +} while (0)
-@@ -2894,2 +2894,3 @@
+@@ -2768,2 +2769,4 @@
++#include "render_scale_gl.h"
++
+ static int init_gpu_raster(void) {
+-    s_scale = s_req_scale;
++    s_scale = 1; /* Commit the actual scale only after all targets allocate. */
+@@ -2781,4 +2784,1 @@
+-    int hw = VRAM_W * s_scale, hh = VRAM_H * s_scale;
+-    s_hr_tex      = make_tex(GL_RGBA8, hw, hh, GL_RGBA, GL_UNSIGNED_BYTE);
+-    s_scratch_tex = make_tex(GL_RGBA8, hw, hh, GL_RGBA, GL_UNSIGNED_BYTE);
+     s_up_tex      = make_tex(GL_RGBA8, VRAM_W, VRAM_H, GL_RGBA, GL_UNSIGNED_BYTE);
+@@ -2801,8 +2801,2 @@
+-    p_glGenRenderbuffers(1, &s_hr_rb);
+-    p_glBindRenderbuffer(PSXGL_RENDERBUFFER, s_hr_rb);
+-    p_glRenderbufferStorage(PSXGL_RENDERBUFFER, PSXGL_DEPTH24_STENCIL8, hw, hh);
+-    p_glBindRenderbuffer(PSXGL_RENDERBUFFER, 0);
+-
+-    if (!make_fbo(&s_hr_fbo, s_hr_tex, s_hr_rb)) return 0;
+     if (!make_fbo(&s_raw_fbo, s_raw_tex, 0)) return 0;
+-    if (!make_fbo(&s_scratch_fbo, s_scratch_tex, 0)) return 0;
++    if (!shadowtower_allocate_render_targets(s_req_scale)) return 0;
+@@ -2894,2 +2888,3 @@
          p_glVertexAttribPointer(9, 1, GL_FLOAT, GL_FALSE, st, (void*)(19*sizeof(float))); p_glEnableVertexAttribArray(9); /* q      */
 +        p_glVertexAttribPointer(10, 1, GL_FLOAT, GL_FALSE, st, (void*)(20*sizeof(float))); p_glEnableVertexAttribArray(10);
      }
-@@ -2946,2 +2947,3 @@
+@@ -2946,2 +2941,3 @@
  int gl_renderer_init_context(SDL_Window *win) {
 +    shadowtower_postfx_reset();
      s_win = win;
+@@ -3021,2 +3017,3 @@
+         SDL_GL_DeleteContext(s_ctx); s_ctx = NULL;
++        free(s_conv); s_conv = NULL;
+         s_raster_ok = 0;

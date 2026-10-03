@@ -178,15 +178,16 @@ class PostFxGL(unittest.TestCase):
     def _render(self, mode="present", enabled=0, original=False, pixels=None,
                 rect=(0., 0., 1., 1.), exposure=0., contrast=1., saturation=1.,
                 grain=0., dither=0., bloom=0., scanlines=0., mask=0., curvature=0.,
-                previous=None, blend_mode=0):
+                previous=None, blend_mode=0, sharp=0, linear=False, output_size=None):
         GL = self.GL
         if pixels is None:
             pixels = bytes(v for y in range(16) for x in range(16)
                            for v in (40+x*9, 60+y*8, 90+x*4, 255))
         GL.glActiveTexture(GL.GL_TEXTURE0)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+        filtering = GL.GL_LINEAR if linear else GL.GL_NEAREST
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, filtering)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, filtering)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE)
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, 16, 16, 0,
@@ -201,7 +202,8 @@ class PostFxGL(unittest.TestCase):
             GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, 16, 16, 0,
                             GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, previous)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo)
-        GL.glViewport(0, 0, self.W, self.H)
+        width, height = output_size or (self.W, self.H)
+        GL.glViewport(0, 0, width, height)
         GL.glDisable(GL.GL_BLEND)
         GL.glBindVertexArray(self.vao)
         program = self.programs[mode][0 if original else 1]
@@ -212,8 +214,8 @@ class PostFxGL(unittest.TestCase):
                 getattr(GL, method)(location, *values)
         uniform("u_uv_rect", "glUniform4f", *rect)
         uniform("u_tex_size", "glUniform2f", 16., 16.)
-        uniform("u_sharp_scale", "glUniform2f", 4., 4.)
-        uniform("u_sharp", "glUniform1i", 0)
+        uniform("u_sharp_scale", "glUniform2f", width / 16., height / 16.)
+        uniform("u_sharp", "glUniform1i", sharp)
         uniform("u_tex", "glUniform1i", 0)
         uniform("u_prev", "glUniform1i", 1 if previous is not None else 0)
         uniform("u_curr", "glUniform1i", 0)
@@ -227,7 +229,7 @@ class PostFxGL(unittest.TestCase):
         uniform("u_postfx_pitch", "glUniform1f", 16.)
         uniform("u_postfx_time", "glUniform1f", 42.)
         GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
-        result = bytes(GL.glReadPixels(0, 0, self.W, self.H, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE))
+        result = bytes(GL.glReadPixels(0, 0, width, height, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE))
         self.assertEqual(GL.glGetError(), GL.GL_NO_ERROR)
         return result
 
@@ -246,6 +248,23 @@ class PostFxGL(unittest.TestCase):
                 self.assertNotEqual(self._render(enabled=1, exposure=1., grain=.2,
                                                  curvature=.2, mask=1., **options), baseline)
                 self.assertEqual(self._render(**options), baseline)
+
+    def test_movie_filters_reconstruct_the_image_and_preserve_flat_colors(self):
+        # Sharp-bilinear intentionally matches nearest at integer magnification.
+        self.assertTrue(self._render(sharp=1, linear=True) == self._render())
+        options = dict(output_size=(63, 61))
+        nearest = self._render(**options)
+        bilinear = self._render(linear=True, **options)
+        self.assertTrue(nearest != bilinear, "Linear filtering should affect fractional scaling")
+        for sharp in (1, 2):
+            with self.subTest(sharp=sharp):
+                filtered = self._render(sharp=sharp, linear=True, **options)
+                self.assertTrue(filtered != nearest, "Movie filter should reconstruct fractional edges")
+                self.assertTrue(filtered != bilinear, "Movie filter should differ from plain bilinear")
+                self.assertTrue(filtered == self._render(original=True, sharp=sharp, linear=True, **options))
+                gray = bytes((96, 96, 96, 255)) * 256
+                self.assertTrue(self._render(pixels=gray, sharp=sharp, linear=True, **options) ==
+                                self._render(pixels=gray, **options))
 
     def test_color_and_texture_effects(self):
         gray = bytes((96, 96, 96, 255)) * 256

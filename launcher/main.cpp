@@ -384,8 +384,20 @@ int main(int argc, char** argv) {
                 dirty = true;
             }
             ImGui::SetNextItemWidth(210 * uiScale);
-            dirty |= ImGui::SliderInt("Resolution scale", &settings.scale, 1, 4, "%dx");
-            dirty |= ImGui::Checkbox("Texture filtering", &settings.filter);
+            dirty |= ImGui::SliderInt("Resolution scale", &settings.scale, 1, launcher::maxRenderScale, "%dx", ImGuiSliderFlags_AlwaysClamp);
+            hint("Scales above 4x consume quadratically more GPU memory; hardware may fall back to a lower scale.");
+            dirty |= ImGui::Checkbox("World texture filtering", &settings.filter);
+            ImGui::SetNextItemWidth(210 * uiScale);
+            int outputFilter = settings.outputFiltering ? 1 : 0;
+            if (ImGui::Combo("Output filtering", &outputFilter, "Nearest\0Linear\0")) {
+                settings.outputFiltering = outputFilter == 1;
+                dirty = true;
+            }
+            ImGui::BeginDisabled(!settings.outputFiltering);
+            ImGui::SetNextItemWidth(210 * uiScale);
+            dirty |= ImGui::Combo("FMV filtering", &settings.fmvFilter, "Nearest\0Bilinear\0Sharp\0Bicubic\0");
+            ImGui::EndDisabled();
+            hint("FMV filtering requires linear output filtering. Your FMV choice is remembered when output filtering is off.");
             dirty |= ImGui::Checkbox("Geometry correction", &settings.geometry);
             dirty |= ImGui::Checkbox("Perspective-correct textures", &settings.perspective);
             if (ImGui::CollapsingHeader("Frame pacing")) {

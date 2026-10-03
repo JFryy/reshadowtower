@@ -63,8 +63,11 @@ inline void applyPostFxPreset(PostFx& p, PostFxPreset preset) {
     case PostFxPreset::custom: break;
     }
 }
+inline constexpr int maxRenderScale = 8;
+inline constexpr std::array<const char*, 4> fmvFilters = {"nearest", "bilinear", "sharp", "bicubic"};
 struct Settings {
-    int wideRatio = 0, scale = 3, volume = 100;
+    int wideRatio = 0, scale = 3, volume = 100, fmvFilter = 0;
+    bool outputFiltering = false;
     bool widescreen = false, fullscreen = false, filter = true, geometry = true, perspective = true;
     bool vsync = true, lowLatency = true;
     double mouseSensitivity = 1.0;
@@ -121,8 +124,12 @@ inline void overlay(Settings& s, const toml::value& root) {
             if (s.widescreen) s.wideRatio = aspect == "21:9" ? 1 : 0;
         }
         const int scale = toml::find_or(v, "supersampling", s.scale);
-        if (scale >= 1 && scale <= 4) s.scale = scale;
+        if (scale >= 1 && scale <= maxRenderScale) s.scale = scale;
         s.fullscreen = toml::find_or(v, "fullscreen", s.fullscreen);
+        s.outputFiltering = toml::find_or(v, "antialiasing", s.outputFiltering);
+        const auto fmv = str("fmv_filter", fmvFilters[s.fmvFilter]);
+        for (size_t i = 0; i < fmvFilters.size(); ++i)
+            if (fmv == fmvFilters[i]) s.fmvFilter = static_cast<int>(i);
         const auto filter = str("texture_filtering", s.filter ? "bilinear" : "nearest");
         if (filter == "bilinear" || filter == "nearest") s.filter = filter == "bilinear";
         s.geometry = toml::find_or(v, "geometry_correction", s.geometry);
@@ -172,7 +179,7 @@ inline Settings load(const fs::path& workspace) {
 }
 // Replace only launcher-owned preferences, preserving other TOML fields.
 inline void save(const fs::path& workspace, const Settings& s) {
-    if (s.wideRatio < 0 || s.wideRatio > 1 || s.scale < 1 || s.scale > 4 || s.volume < 0 || s.volume > 100 ||
+    if (s.wideRatio < 0 || s.wideRatio > 1 || s.scale < 1 || s.scale > maxRenderScale || s.fmvFilter < 0 || s.fmvFilter >= static_cast<int>(fmvFilters.size()) || s.volume < 0 || s.volume > 100 ||
         !std::isfinite(s.mouseSensitivity) || s.mouseSensitivity < 0.05 || s.mouseSensitivity > 10.0 ||
         !validPostFx(s.postFx))
         throw std::invalid_argument("Invalid settings range");
@@ -192,6 +199,8 @@ inline void save(const fs::path& workspace, const Settings& s) {
     doc["launcher"]["mouse_sensitivity"] = s.mouseSensitivity;
     v["supersampling"] = s.scale;
     v["fullscreen"] = s.fullscreen;
+    v["antialiasing"] = s.outputFiltering;
+    v["fmv_filter"] = fmvFilters[s.fmvFilter];
     v["texture_filtering"] = s.filter ? "bilinear" : "nearest";
     v["geometry_correction"] = s.geometry;
     v["perspective_texturing"] = s.perspective;

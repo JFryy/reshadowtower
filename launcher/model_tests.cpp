@@ -15,10 +15,11 @@ int main() {
     fs::create_directories(root / "build-release");
     try {
         { std::ofstream(root / "game.toml") << "[video]\naspect_ratio = '4:3'\nsupersampling = 3\n";
-          std::ofstream(root / "build-release/settings.toml") << "[video]\naspect_ratio = 'invalid'\nsupersampling = 6\nunknown = 99\n[audio]\nvolume = 35\nother = 'kept'\n"; }
+          std::ofstream(root / "build-release/settings.toml") << "[video]\naspect_ratio = 'invalid'\nsupersampling = 9\nunknown = 99\n[audio]\nvolume = 35\nother = 'kept'\n"; }
         auto s = launcher::load(root);
         require(!s.widescreen && s.wideRatio == 0 && s.scale == 3 && s.volume == 35);
         require(s.vsync && s.lowLatency && s.mouseSensitivity == 1.0);
+        require(!s.outputFiltering && s.fmvFilter == 0 && s.scale == 3 && !s.widescreen);
         require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::original);
         require(launcher::gameEnvironment(s)[4].second == "0");
         launcher::applyPostFxPreset(s.postFx, launcher::PostFxPreset::subtle);
@@ -110,11 +111,44 @@ int main() {
         launcher::save(root, fallback);
         require(toml::find<std::string>(launcher::parse(root / "build-release/settings.toml"),
                                         "post_processing", "unknown") == "kept");
-        s.scale = 6;
+        for (int scale = 5; scale <= launcher::maxRenderScale; ++scale) {
+            s.scale = scale;
+            launcher::save(root, s);
+            require(launcher::load(root).scale == scale);
+            require(launcher::graphicsPreset(s) == launcher::GraphicsPreset::custom);
+        }
+        for (int filter = 0; filter < static_cast<int>(launcher::fmvFilters.size()); ++filter) {
+            s.fmvFilter = filter;
+            s.outputFiltering = false;
+            launcher::save(root, s);
+            require(!launcher::load(root).outputFiltering && launcher::load(root).fmvFilter == filter);
+            require(toml::find<std::string>(launcher::parse(root / "build-release/settings.toml"),
+                                            "video", "fmv_filter") == launcher::fmvFilters[filter]);
+            s.outputFiltering = true;
+            launcher::save(root, s);
+            require(launcher::load(root).outputFiltering && launcher::load(root).fmvFilter == filter);
+        }
+        std::ofstream(root / "build-release/settings.toml") <<
+            "[video]\nantialiasing = false\nfmv_filter = 'invalid'\nsupersampling = 9\nunknown = 99\n";
+        auto videoFallback = launcher::load(root);
+        require(!videoFallback.outputFiltering && videoFallback.fmvFilter == 0 && videoFallback.scale == 3);
+        videoFallback.fmvFilter = 2;
+        launcher::overlay(videoFallback, launcher::parse(root / "build-release/settings.toml"));
+        require(videoFallback.fmvFilter == 2);
+        s.scale = 9;
         bool rejected = false;
         try { launcher::save(root, s); } catch (const std::invalid_argument&) { rejected = true; }
         require(rejected);
         s.scale = 4;
+        const auto beforeInvalidVideo = toml::format(launcher::parse(root / "build-release/settings.toml"));
+        for (int invalid : {-1, static_cast<int>(launcher::fmvFilters.size())}) {
+            s.fmvFilter = invalid;
+            rejected = false;
+            try { launcher::save(root, s); } catch (const std::invalid_argument&) { rejected = true; }
+            require(rejected && !fs::exists(root / "build-release/settings.toml.tmp"));
+            require(toml::format(launcher::parse(root / "build-release/settings.toml")) == beforeInvalidVideo);
+        }
+        s.fmvFilter = 0;
         for (double invalid : {0.049, 10.001, std::numeric_limits<double>::infinity(),
                                std::numeric_limits<double>::quiet_NaN()}) {
             s.mouseSensitivity = invalid;
