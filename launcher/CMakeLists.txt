@@ -6,13 +6,27 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(SDL3 3.4 CONFIG REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(Threads REQUIRED)
+include(FetchContent)
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
+# Release payloads include these sources so rebuilding does not require network access.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bundled-imgui/imgui.cpp")
+    set(FETCHCONTENT_SOURCE_DIR_IMGUI "${CMAKE_CURRENT_SOURCE_DIR}/bundled-imgui")
+endif()
+FetchContent_Declare(imgui
+    URL https://codeload.github.com/ocornut/imgui/tar.gz/refs/tags/v1.91.9b
+    URL_HASH SHA256=8e1bbc76c71d74fef2fb85db7e7ca8eba13d6a86623c54992b60162db554ffdb)
+FetchContent_MakeAvailable(imgui)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/imgui-source-dir.txt" "${imgui_SOURCE_DIR}\n")
 add_executable(shadowtower-launcher main.cpp ../psxrecomp/runtime/src/psx_sha256.c
-    vendor/imgui/imgui.cpp vendor/imgui/imgui_draw.cpp
-    vendor/imgui/imgui_tables.cpp vendor/imgui/imgui_widgets.cpp
-    vendor/imgui/backends/imgui_impl_sdl3.cpp
-    vendor/imgui/backends/imgui_impl_opengl3.cpp)
+    ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp)
 target_compile_features(shadowtower-launcher PRIVATE cxx_std_17)
-target_include_directories(shadowtower-launcher PRIVATE vendor/imgui vendor/imgui/backends ../psxrecomp/runtime/third_party ../psxrecomp/runtime/include ../psxrecomp/recompiler/lib/toml11)
+target_compile_definitions(shadowtower-launcher PRIVATE IMGUI_USE_WCHAR32)
+target_include_directories(shadowtower-launcher PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ../psxrecomp/runtime/third_party ../psxrecomp/runtime/include ../psxrecomp/recompiler/lib/toml11)
 if(WIN32)
     if(NOT TARGET SDL3::SDL3-static)
         message(FATAL_ERROR "The standalone Windows launcher requires the bundled static SDL3 SDK.")

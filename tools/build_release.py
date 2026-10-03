@@ -101,7 +101,8 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
     if package_release.source_fingerprint() != fingerprint:
         raise ValueError("Source fingerprint changed during build; discard this output and retry")
     metadata = {"platform": target, "toolchain_sha256": bundled_toolchain.PINS[target][1],
-                "source_fingerprint": fingerprint, "emitters": str(emitters), "binaries": hashes}
+                "source_fingerprint": fingerprint, "emitters": str(emitters), "binaries": hashes,
+                "imgui": package_release.imgui_hashes(package_release.imgui_source(host))}
     if target == "linux-x64":
         metadata["sdl"] = {"archive_sha256": build_bundled_sdl.SHA256,
                            "prefix": str(sdl), "files": build_bundled_sdl.hashes(sdl)}

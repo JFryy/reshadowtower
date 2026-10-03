@@ -33,6 +33,13 @@ class DistributionTests(unittest.TestCase):
             (sdl / "libSDL3.a").write_bytes(b"static SDL")
             metadata["sdl"] = {"archive_sha256": build_bundled_sdl.SHA256,
                                "prefix": str(sdl.resolve()), "files": build_bundled_sdl.hashes(sdl)}
+            imgui = root / "imgui"
+            for name in package_release.IMGUI_FILES:
+                path = imgui / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"ImGui source")
+            (build / "imgui-source-dir.txt").write_text(str(imgui) + "\n")
+            metadata["imgui"] = package_release.imgui_hashes(imgui)
             (build / "release-build.json").write_text(json.dumps(metadata))
             args = SimpleNamespace(build=build, emitters=emitters, platform="linux-x64")
             with mock.patch.object(package_release, "source_fingerprint", return_value="changed"):
@@ -51,6 +58,25 @@ class DistributionTests(unittest.TestCase):
                 (sdl / "libSDL3.a").write_bytes(b"tampered SDL")
                 with self.assertRaisesRegex(ValueError, "Bundled SDL files differ"):
                     package_release.validate_build(args)
+                (sdl / "libSDL3.a").write_bytes(b"static SDL")
+                (imgui / "imgui.cpp").write_bytes(b"tampered ImGui")
+                with self.assertRaisesRegex(ValueError, "ImGui sources differ"):
+                    package_release.validate_build(args)
+
+    def test_imgui_hashes_require_build_inputs_but_ignore_unused_sources(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)
+            for name in package_release.IMGUI_FILES:
+                path = source / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"ImGui source")
+            (source / "imgui_demo.cpp").write_bytes(b"unused demo")
+            hashes = package_release.imgui_hashes(source)
+            self.assertEqual(set(hashes), set(package_release.IMGUI_FILES))
+            self.assertIn("LICENSE.txt", hashes)
+            (source / "imgui.h").unlink()
+            with self.assertRaises(FileNotFoundError):
+                package_release.imgui_hashes(source)
 
     def test_source_export_keeps_vendor_headers_but_excludes_game_code(self):
         root = package_release.ROOT
@@ -65,6 +91,7 @@ class DistributionTests(unittest.TestCase):
         self.assertEqual([path for path in exported if "launcher" not in path.parts], paths[1:4])
         self.assertTrue(any(path.name == "CMakeLists.txt" and "launcher" in path.parts for path in exported))
         self.assertFalse(any("recomp-ui" in path.parts for path in exported))
+        self.assertFalse(any("imgui" in path.parts for path in exported))
         for name in ("artwork.hpp", "bindings.hpp", "bindings_tests.cpp"):
             self.assertIn(root / "launcher" / name, exported)
 

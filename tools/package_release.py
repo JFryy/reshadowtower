@@ -18,6 +18,14 @@ from bundled_toolchain import PINS, extract_verified, tool_paths
 from release_common import file_hash, file_hashes
 
 ROOT = Path(__file__).resolve().parents[1]
+IMGUI_FILES = (
+    "LICENSE.txt", "imconfig.h", "imgui.cpp", "imgui.h", "imgui_draw.cpp",
+    "imgui_internal.h", "imgui_tables.cpp", "imgui_widgets.cpp",
+    "imstb_rectpack.h", "imstb_textedit.h", "imstb_truetype.h",
+    "backends/imgui_impl_sdl3.cpp", "backends/imgui_impl_sdl3.h",
+    "backends/imgui_impl_opengl3.cpp", "backends/imgui_impl_opengl3.h",
+    "backends/imgui_impl_opengl3_loader.h",
+)
 PROJECT_FILES = (
     "CMakeLists.txt", "game.toml", "config.ini", "VERSION", "LICENSE",
     "cmake/graphics.cmake", "cmake/input.cmake",
@@ -54,8 +62,6 @@ def source_files() -> Iterator[Path]:
     for name in ("CMakeLists.txt", "main.cpp", "model.hpp", "model_tests.cpp",
                  "artwork.hpp", "bindings.hpp", "bindings_tests.cpp"):
         yield ROOT / "launcher" / name
-    yield from (path for path in sorted((ROOT / "launcher/vendor/imgui").rglob("*"))
-                if path.is_file() and (path.suffix in (".cpp", ".h") or path.name == "LICENSE.txt"))
     for module in ("psxrecomp",):
         for source in tracked_files(ROOT / module):
             relative = source.relative_to(ROOT)
@@ -89,6 +95,14 @@ def source_fingerprint() -> str:
     return digest.hexdigest()
 
 
+def imgui_source(build: Path) -> Path:
+    return Path((build / "imgui-source-dir.txt").read_text(encoding="utf-8").strip())
+
+
+def imgui_hashes(source: Path) -> dict[str, str]:
+    return {name: file_hash(source / name) for name in IMGUI_FILES}
+
+
 def validate_build(args: argparse.Namespace) -> None:
     stamp = json.loads((args.build / "release-build.json").read_text(encoding="utf-8"))
     if stamp["source_fingerprint"] != source_fingerprint():
@@ -101,6 +115,8 @@ def validate_build(args: argparse.Namespace) -> None:
             raise ValueError("Bundled SDL provenance mismatch")
         if build_bundled_sdl.hashes(Path(sdl["prefix"])) != sdl["files"]:
             raise ValueError("Bundled SDL files differ from verified build")
+    if imgui_hashes(imgui_source(args.build)) != stamp["imgui"]:
+        raise ValueError("ImGui sources differ from verified build; rebuild before packaging")
     suffix = ".exe" if args.platform == "windows-x64" else ""
     binaries = {name + suffix: args.emitters / (name + suffix) for name in ("psxrecomp-game", "psxrecomp-bios")}
     binaries["shadowtower-launcher" + suffix] = args.build / ("shadowtower-launcher" + suffix)
@@ -125,6 +141,15 @@ def stage(args: argparse.Namespace) -> None:
         payload = staging / "payload"
         payload.mkdir()
         copy_sources(payload)
+        imgui = imgui_source(args.build)
+        bundled_imgui = payload / "launcher/bundled-imgui"
+        for name in IMGUI_FILES:
+            destination = bundled_imgui / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(imgui / name, destination)
+        stamp = json.loads((args.build / "release-build.json").read_text(encoding="utf-8"))
+        if imgui_hashes(bundled_imgui) != stamp["imgui"]:
+            raise ValueError("Staged ImGui sources differ from verified build")
         if args.platform == "linux-x64":
             sdl = json.loads((args.build / "release-build.json").read_text())["sdl"]
             shutil.copytree(sdl["prefix"], payload / "bundled-sdl")
