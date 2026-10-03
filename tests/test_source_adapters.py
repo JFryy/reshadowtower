@@ -11,7 +11,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from prepare_source import apply_patch
+from prepare_source import apply_patch, prepare
 
 
 class SourceAdapterTests(unittest.TestCase):
@@ -100,6 +100,21 @@ int main(void) {
             subprocess.run([compiler, "-std=c11", "-Wall", "-Wextra", "-Werror",
                             str(test_source), "-o", str(executable)], check=True, capture_output=True)
             subprocess.run([str(executable)], check=True, capture_output=True)
+
+    def test_graphics_preparation_emits_both_shader_includes(self):
+        shaders = [ROOT / "src/world_texture_filter.glsl", ROOT / "src/post_processing.glsl"]
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "gpu_gl_renderer.c"
+            prepare(ROOT / "psxrecomp/runtime/src/gpu_gl_renderer.c",
+                    ROOT / "patches/runtime-graphics.patch", output, shaders)
+            for shader in shaders:
+                self.assertTrue((output.parent / (shader.stem + ".inc")).is_file())
+            generated = output.read_text()
+            self.assertEqual(generated.count('#include "post_processing.inc"'), 2)
+            self.assertIn("shadowtower_postfx_upload(0, s_present_prog", generated)
+            self.assertIn("shadowtower_postfx_upload(1, s_interp_prog", generated)
+            self.assertIn("PRESENT_SCANLINE(v_flip ? tex_h : 0", generated)
+            self.assertIn("PRESENT_SCANLINE(0, 0, 0);          /* never scanline the host OSD */", generated)
 
     def test_patch_result_and_drift_rejection(self):
         source, expected = "first\nsecond\n", "first\nreplacement\n"

@@ -394,6 +394,36 @@ int main(int argc, char** argv) {
                 dirty |= ImGui::Checkbox("Low-latency input", &settings.lowLatency);
                 hint("Poll input closer to the game's input read to reduce delay.");
             }
+            if (ImGui::CollapsingHeader("Post-processing")) {
+                auto& fx = settings.postFx;
+                dirty |= ImGui::Checkbox("Enable post-processing", &fx.enabled);
+                hint("Off by default. Effects apply to the whole game image, including its HUD and menus, on the next launch.");
+                int effectPreset = static_cast<int>(launcher::postFxPreset(fx));
+                ImGui::SetNextItemWidth(210 * uiScale);
+                if (ImGui::Combo("Effect preset", &effectPreset, "Original (off)\0Subtle\0CRT\0Custom\0")) {
+                    launcher::applyPostFxPreset(fx, static_cast<launcher::PostFxPreset>(effectPreset));
+                    dirty = true;
+                }
+                ImGui::BeginDisabled(!fx.enabled);
+                const auto effect = [&](const char* label, float& value, float low, float high, const char* format) {
+                    ImGui::SetNextItemWidth(210 * uiScale);
+                    dirty |= ImGui::SliderFloat(label, &value, low, high, format, ImGuiSliderFlags_AlwaysClamp);
+                };
+                ImGui::TextUnformatted("Color grading");
+                effect("Exposure", fx.exposure, -2.f, 2.f, "%+.2f stops");
+                effect("Contrast", fx.contrast, .5f, 1.5f, "%.2fx");
+                effect("Saturation", fx.saturation, 0.f, 2.f, "%.2fx");
+                ImGui::TextUnformatted("Texture and glow");
+                effect("Film grain", fx.grain, 0.f, .2f, "%.3f");
+                effect("Dithering", fx.dither, 0.f, 1.f, "%.2f");
+                effect("Bloom", fx.bloom, 0.f, 1.f, "%.2f");
+                hint("Zero disables each effect. Bloom adds a subtle glow around bright pixels; it is not HDR lighting.");
+                ImGui::TextUnformatted("CRT presentation");
+                effect("Scanlines", fx.scanlines, 0.f, 1.f, "%.2f");
+                effect("RGB mask", fx.mask, 0.f, 1.f, "%.2f");
+                effect("Curvature", fx.curvature, 0.f, .2f, "%.2f");
+                ImGui::EndDisabled();
+            }
             ImGui::EndDisabled();
         } else if (page == 2) {
             ImGui::BeginDisabled(!settingsLoaded);

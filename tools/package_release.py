@@ -22,6 +22,7 @@ PROJECT_FILES = (
     "CMakeLists.txt", "game.toml", "config.ini", "VERSION", "LICENSE",
     "cmake/graphics.cmake", "cmake/input.cmake",
     "src/modern_controls.c", "src/modern_controls.h", "src/world_texture_filter.glsl",
+    "src/post_processing.h", "src/post_processing_gl.h", "src/post_processing.glsl",
     "seeds/ghidra_funcs.txt", "tools/prepare_source.py", "tools/release_cli.py", "tools/generate_aot.py",
     "tools/release_common.py", "tools/launcher_backend.py",
     "cmake/adapters.cmake", "patches/runtime-input.patch", "patches/runtime-graphics.patch",

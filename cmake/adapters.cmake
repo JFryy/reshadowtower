@@ -4,12 +4,12 @@ find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 function(shadowtower_prepare output source patch)
     set(shader_args)
     set(shader_output)
-    if(ARGN)
-        list(APPEND shader_args --shader "${ARGN}")
+    foreach(shader IN LISTS ARGN)
+        list(APPEND shader_args --shader "${shader}")
         get_filename_component(directory "${output}" DIRECTORY)
-        get_filename_component(name "${ARGN}" NAME_WE)
-        set(shader_output "${directory}/${name}.inc")
-    endif()
+        get_filename_component(name "${shader}" NAME_WE)
+        list(APPEND shader_output "${directory}/${name}.inc")
+    endforeach()
     add_custom_command(OUTPUT "${output}"
         BYPRODUCTS ${shader_output}
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/prepare_source.py"

@@ -3,6 +3,7 @@
 #include <chrono>
 #include <fstream>
 #include <limits>
+#include <sstream>
 
 static void require(bool condition) {
     if (!condition) throw std::runtime_error("Launcher model check failed");
@@ -18,6 +19,20 @@ int main() {
         auto s = launcher::load(root);
         require(!s.widescreen && s.wideRatio == 0 && s.scale == 3 && s.volume == 35);
         require(s.vsync && s.lowLatency && s.mouseSensitivity == 1.0);
+        require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::original);
+        require(launcher::gameEnvironment(s)[4].second == "0");
+        launcher::applyPostFxPreset(s.postFx, launcher::PostFxPreset::subtle);
+        require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::subtle);
+        require(s.postFx.enabled && s.postFx.contrast == 1.05f && s.postFx.saturation == .9f &&
+                s.postFx.grain == .015f && s.postFx.dither == .1f && s.postFx.bloom == .08f &&
+                s.postFx.exposure == 0 && s.postFx.scanlines == 0 && s.postFx.mask == 0 && s.postFx.curvature == 0);
+        launcher::applyPostFxPreset(s.postFx, launcher::PostFxPreset::crt);
+        require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::crt);
+        require(s.postFx.enabled && s.postFx.contrast == 1.05f && s.postFx.saturation == 1 &&
+                s.postFx.grain == .02f && s.postFx.dither == .25f && s.postFx.bloom == .08f &&
+                s.postFx.scanlines == .3f && s.postFx.mask == .15f && s.postFx.curvature == .04f);
+        launcher::applyPostFxPreset(s.postFx, launcher::PostFxPreset::original);
+        require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::original);
         s.vsync = false; s.lowLatency = false; s.mouseSensitivity = 0.05;
         launcher::applyGraphicsPreset(s, launcher::GraphicsPreset::balanced);
         require(launcher::graphicsPreset(s) == launcher::GraphicsPreset::balanced);
@@ -57,6 +72,44 @@ int main() {
         s.widescreen = true;
         launcher::save(root, s);
         require(toml::find<std::string>(launcher::parse(root / "build-release/settings.toml"), "video", "aspect_ratio") == "21:9");
+        s.postFx = {true, -2, .5f, 2, .2f, 1, .75f, .3f, .15f, .2f};
+        launcher::save(root, s);
+        const auto fxEnv = launcher::gameEnvironment(s);
+        require(fxEnv[4].first == "SHADOWTOWER_POSTFX");
+        std::istringstream values(fxEnv[4].second);
+        values.imbue(std::locale::classic());
+        char comma;
+        int enabled;
+        float fields[9];
+        values >> enabled;
+        for (auto& value : fields) values >> comma >> value;
+        require(enabled == 1 && !values.fail() && fields[0] == s.postFx.exposure &&
+                fields[1] == s.postFx.contrast && fields[2] == s.postFx.saturation &&
+                fields[3] == s.postFx.grain && fields[4] == s.postFx.dither &&
+                fields[5] == s.postFx.bloom && fields[6] == s.postFx.scanlines &&
+                fields[7] == s.postFx.mask && fields[8] == s.postFx.curvature);
+        require(launcher::load(root).postFx.curvature == .2f);
+        s.postFx.enabled = false;
+        launcher::save(root, s);
+        require(launcher::gameEnvironment(s)[4].second == "0" &&
+                !launcher::load(root).postFx.enabled && launcher::load(root).postFx.curvature == .2f);
+        const auto beforeInvalid = launcher::parse(root / "build-release/settings.toml");
+        for (float invalid : {-.01f, .201f, std::numeric_limits<float>::infinity(),
+                              std::numeric_limits<float>::quiet_NaN()}) {
+            s.postFx.curvature = invalid;
+            bool fxRejected = false;
+            try { launcher::save(root, s); } catch (const std::invalid_argument&) { fxRejected = true; }
+            require(fxRejected && !fs::exists(root / "build-release/settings.toml.tmp"));
+            require(toml::format(launcher::parse(root / "build-release/settings.toml")) == toml::format(beforeInvalid));
+        }
+        s.postFx.curvature = .2f;
+        std::ofstream(root / "build-release/settings.toml") <<
+            "[post_processing]\nenabled = true\nexposure = 3.0\ncontrast = -1.0\nunknown = 'kept'\n";
+        auto fallback = launcher::load(root);
+        require(fallback.postFx.enabled && fallback.postFx.exposure == 0 && fallback.postFx.contrast == 1);
+        launcher::save(root, fallback);
+        require(toml::find<std::string>(launcher::parse(root / "build-release/settings.toml"),
+                                        "post_processing", "unknown") == "kept");
         s.scale = 6;
         bool rejected = false;
         try { launcher::save(root, s); } catch (const std::invalid_argument&) { rejected = true; }
