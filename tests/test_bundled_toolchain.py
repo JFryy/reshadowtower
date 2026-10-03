@@ -24,6 +24,8 @@ class BundledToolchainTests(unittest.TestCase):
         with zipfile.ZipFile(self.archive, "w") as archive:
             for name, payload, mode in entries:
                 info = zipfile.ZipInfo(name)
+                # Keep malformed names intact instead of letting ZipInfo normalize them.
+                info.filename = name
                 info.create_system = 3
                 info.external_attr = mode << 16
                 archive.writestr(info, payload)
@@ -36,9 +38,11 @@ class BundledToolchainTests(unittest.TestCase):
         self.assertEqual(list(self.root.iterdir()), [self.archive])
 
     def test_traversal_and_absolute_paths(self):
-        for name in ("../outside", "/absolute", "C:/drive", "folder\\backslash"):
+        for name in ("../outside", "/absolute", "C:/drive", "folder\\backslash", "nul\x00suffix"):
             with self.subTest(name=name):
                 digest = self.make_archive([(name, b"bad", stat.S_IFREG | 0o644)])
+                with zipfile.ZipFile(self.archive) as archive:
+                    self.assertEqual(archive.infolist()[0].orig_filename, name)
                 with self.assertRaises(ValueError):
                     extract_verified(self.archive, self.destination, digest)
                 self.assertFalse(self.destination.exists())

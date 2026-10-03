@@ -15,7 +15,7 @@ import dependencies
 class DistributionTests(unittest.TestCase):
     def test_changed_sources_or_binaries_cannot_be_packaged(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             build = root / "host"
             emitters = root / "emitters"
             build.mkdir()
@@ -66,7 +66,7 @@ class DistributionTests(unittest.TestCase):
 
     def test_imgui_hashes_require_build_inputs_but_ignore_unused_sources(self):
         with tempfile.TemporaryDirectory() as directory:
-            source = Path(directory)
+            source = Path(directory).resolve()
             for name in package_release.IMGUI_FILES:
                 path = source / name
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -82,7 +82,7 @@ class DistributionTests(unittest.TestCase):
     def test_source_export_keeps_vendor_headers_but_excludes_game_code(self):
         with tempfile.TemporaryDirectory() as directory, \
              mock.patch.object(dependencies, "framework_inventory") as inventory:
-            framework = Path(directory) / "external-framework"
+            framework = Path(directory).resolve() / "external-framework"
             names = ("generated/private_game.c", "recompiler/include/generated/InstrId_enum.h",
                          "recompiler/tests/test.cpp", "bios/openbios.bin", "bios/SCPH1001.BIN",
                          "build-output/file.cpp", "CMakeFiles/cache.cpp", "saves/card.mcd",
@@ -107,7 +107,7 @@ class DistributionTests(unittest.TestCase):
             self.assertIn((package_release.ROOT / "launcher/artwork.hpp", Path("launcher/artwork.hpp")),
                           exported.items())
             first = package_release.source_fingerprint(framework)
-            relocated = Path(directory) / "relocated"
+            relocated = Path(directory).resolve() / "relocated"
             framework.rename(relocated)
             self.assertEqual(first, package_release.source_fingerprint(relocated))
             (relocated / "recompiler/tests/test.cpp").write_bytes(b"tampered")
@@ -120,7 +120,7 @@ class DistributionTests(unittest.TestCase):
 
     def test_dependency_pins_must_match_build(self):
         with tempfile.TemporaryDirectory() as directory:
-            build = Path(directory)
+            build = Path(directory).resolve()
             (build / "release-build.json").write_text(json.dumps({
                 "source_fingerprint": "original", "dependency_pins": []}))
             with mock.patch.object(package_release, "source_fingerprint", return_value="original"):

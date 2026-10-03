@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -12,7 +13,7 @@ class RecompilerDiscoveryTests(unittest.TestCase):
         for directory in ("build-recompiler", "psxrecomp/recompiler/build"):
             for windows in (False, True):
                 with self.subTest(directory=directory, windows=windows), tempfile.TemporaryDirectory() as temporary:
-                    root = Path(temporary)
+                    root = Path(temporary).resolve()
                     emitter = root / directory / ("psxrecomp-game.exe" if windows else "psxrecomp-game")
                     emitter.parent.mkdir(parents=True)
                     emitter.touch()
@@ -20,18 +21,20 @@ class RecompilerDiscoveryTests(unittest.TestCase):
 
     def test_resolved_framework_emitter(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "project"
-            framework = Path(temporary) / "framework"
-            emitter = framework / "recompiler/build/psxrecomp-game"
+            temporary_root = Path(temporary).resolve()
+            root = temporary_root / "project"
+            framework = temporary_root / "framework"
+            name = "psxrecomp-game.exe" if os.name == "nt" else "psxrecomp-game"
+            emitter = framework / "recompiler/build" / name
             emitter.parent.mkdir(parents=True)
             emitter.touch()
             self.assertEqual(find_recompiler(root, framework=framework), emitter)
 
     def test_missing_emitter_reports_expected_path(self):
         with tempfile.TemporaryDirectory() as directory:
-            expected = Path(directory) / "build-recompiler/psxrecomp-game.exe"
+            expected = Path(directory).resolve() / "build-recompiler/psxrecomp-game.exe"
             with self.assertRaisesRegex(FileNotFoundError, "missing emitter") as raised:
-                find_recompiler(Path(directory), windows=True)
+                find_recompiler(Path(directory).resolve(), windows=True)
             self.assertIn(str(expected), str(raised.exception))
 
 

@@ -29,16 +29,16 @@ class DependencyTests(unittest.TestCase):
 
     def test_explicit_sources_do_not_fetch_or_require_git(self):
         with tempfile.TemporaryDirectory() as directory:
-            source = Path(directory) / "framework"
+            source = Path(directory).resolve() / "framework"
             self.make_framework(source)
             with mock.patch.dict(os.environ, {"PSXRECOMP_ROOT": str(source)}), \
                  mock.patch.object(dependencies.subprocess, "run") as run:
-                self.assertEqual(dependencies.framework_root(Path(directory)), source)
+                self.assertEqual(dependencies.framework_root(Path(directory).resolve()), source)
             run.assert_not_called()
 
     def test_incomplete_override_fails_without_fetching(self):
         with tempfile.TemporaryDirectory() as directory:
-            source = Path(directory)
+            source = Path(directory).resolve()
             with mock.patch.dict(os.environ, {"PSXRECOMP_ROOT": str(source)}), \
                  mock.patch.object(dependencies.subprocess, "run") as run:
                 with self.assertRaisesRegex(ValueError, "missing runtime/runtime.cmake"):
@@ -47,7 +47,7 @@ class DependencyTests(unittest.TestCase):
 
     def test_bundled_release_sources_are_offline(self):
         with tempfile.TemporaryDirectory() as directory:
-            project = Path(directory)
+            project = Path(directory).resolve()
             source = project / "psxrecomp"
             self.make_framework(source)
             with mock.patch.dict(os.environ, {}, clear=True), \
@@ -57,7 +57,7 @@ class DependencyTests(unittest.TestCase):
 
     def test_developer_bootstrap_uses_shared_cmake_pins(self):
         with tempfile.TemporaryDirectory() as directory:
-            project = Path(directory)
+            project = Path(directory).resolve()
             (project / ".git").mkdir()
             source = project / "build-dependencies/_deps/psxrecomp-src"
             self.make_framework(source)
@@ -87,7 +87,7 @@ class DependencyTests(unittest.TestCase):
 
     def test_inventory_uses_verified_archive_paths_without_fetching(self):
         with tempfile.TemporaryDirectory() as directory:
-            project = Path(directory)
+            project = Path(directory).resolve()
             pin = self.write_inventory_archive(project, ("source/runtime/source.c",))
             pin["path"] = "lib/recomp-net"
             with mock.patch.object(dependencies, "dependency_pins", return_value=[pin]), \
@@ -98,7 +98,7 @@ class DependencyTests(unittest.TestCase):
 
     def test_inventory_rejects_changed_archive(self):
         with tempfile.TemporaryDirectory() as directory:
-            project = Path(directory)
+            project = Path(directory).resolve()
             pin = self.write_inventory_archive(project, ("source/runtime/source.c",))
             pin["sha256"] = "0" * 64
             with mock.patch.object(dependencies, "dependency_pins", return_value=[pin]):
@@ -107,7 +107,7 @@ class DependencyTests(unittest.TestCase):
 
     def test_inventory_rejects_unsafe_paths(self):
         with tempfile.TemporaryDirectory() as directory:
-            project = Path(directory)
+            project = Path(directory).resolve()
             pin = self.write_inventory_archive(project, ("source/../../private",))
             with mock.patch.object(dependencies, "dependency_pins", return_value=[pin]):
                 with self.assertRaisesRegex(ValueError, "Unsafe dependency archive path"):
