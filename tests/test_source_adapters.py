@@ -11,6 +11,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
+from dependencies import framework_root
 from prepare_source import apply_patch, prepare
 
 
@@ -19,11 +20,11 @@ class SourceAdapterTests(unittest.TestCase):
         for name in ("runtime-input", "runtime-graphics", "runtime-widescreen", "runtime-settings", "runtime-software"):
             with self.subTest(patch=name):
                 text = (ROOT / "patches" / f"{name}.patch").read_text(encoding="utf-8")
-                source = (ROOT / text.splitlines()[1].removeprefix("--- a/")).read_text(encoding="utf-8-sig")
+                source = (framework_root() / text.splitlines()[1].removeprefix("--- a/psxrecomp/")).read_text(encoding="utf-8-sig")
                 self.assertNotEqual(apply_patch(source, text), source)
 
     def test_title_runtime_honors_launcher_display_and_volume(self):
-        source = (ROOT / "psxrecomp/runtime/src/main.cpp").read_text(encoding="utf-8-sig")
+        source = (framework_root() / "runtime/src/main.cpp").read_text(encoding="utf-8-sig")
         patched = apply_patch(source, (ROOT / "patches/runtime-input.patch").read_text())
         self.assertIn("constexpr bool ws_offered = true;", patched)
         self.assertIn("constexpr bool ws_ultrawide_offered = true;", patched)
@@ -38,7 +39,7 @@ class SourceAdapterTests(unittest.TestCase):
         self.assertEqual(config["video"]["aspect_ratio"], "4:3")
 
     def test_menu_stretch_is_applied_to_all_present_paths_but_not_movies(self):
-        source = (ROOT / "psxrecomp/runtime/src/main.cpp").read_text(encoding="utf-8-sig")
+        source = (framework_root() / "runtime/src/main.cpp").read_text(encoding="utf-8-sig")
         patched = apply_patch(source, (ROOT / "patches/runtime-input.patch").read_text())
         self.assertIn("const bool stretch_menu = g_ws_engaged && fmv_frame && !di.depth24 &&", patched)
         self.assertIn("g_video_aspect_num * 3 > g_video_aspect_den * 4 &&", patched)
@@ -50,7 +51,7 @@ class SourceAdapterTests(unittest.TestCase):
         compiler = shutil.which("cc")
         if not compiler:
             self.skipTest("C compiler unavailable")
-        source = (ROOT / "psxrecomp/runtime/src/gpu.c").read_text(encoding="utf-8-sig")
+        source = (framework_root() / "runtime/src/gpu.c").read_text(encoding="utf-8-sig")
         patched = apply_patch(source, (ROOT / "patches/runtime-widescreen.patch").read_text())
         functions = []
         for name in ("shadowtower_menu_active", "ws_game_mode"):
@@ -106,7 +107,7 @@ int main(void) {
         shaders = [ROOT / "src/world_texture_filter.glsl", ROOT / "src/post_processing.glsl"]
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "gpu_gl_renderer.c"
-            prepare(ROOT / "psxrecomp/runtime/src/gpu_gl_renderer.c",
+            prepare(framework_root() / "runtime/src/gpu_gl_renderer.c",
                     ROOT / "patches/runtime-graphics.patch", output, shaders)
             for shader in shaders:
                 self.assertTrue((output.parent / (shader.stem + ".inc")).is_file())

@@ -136,7 +136,7 @@ def prepare_launch(package: Path, data: Path) -> tuple[Path, dict[str, str]]:
     # The child executable lives in user data, not in the AppImage. Inherited
     # APPIMAGE makes the runtime resolve BIOS/assets beside the outer archive.
     for key in ("APPIMAGE", "APPDIR", "ARGV0", "OWD", "CC", "CXX", "CMAKE_PREFIX_PATH", "SDL3_DIR", "ZLIB_ROOT", "PYTHONPATH", "PYTHONHOME",
-                "CMAKE", "PYTHON", "PSXRECOMP_PROJECT_ROOT", "PSXRECOMP_BUILD_DIR", "TOOLCHAIN_DIR", "BPE_TOOLCHAIN_DIR"):
+                "CMAKE", "PYTHON", "PSXRECOMP_ROOT", "PSXRECOMP_PROJECT_ROOT", "PSXRECOMP_BUILD_DIR", "TOOLCHAIN_DIR", "BPE_TOOLCHAIN_DIR"):
         env.pop(key, None)
     python = pack / ("python/python.exe" if os.name == "nt" else "python/bin/python3")
     env.update({

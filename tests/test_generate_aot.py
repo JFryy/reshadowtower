@@ -18,6 +18,15 @@ class RecompilerDiscoveryTests(unittest.TestCase):
                     emitter.touch()
                     self.assertEqual(find_recompiler(root, windows=windows), emitter)
 
+    def test_resolved_framework_emitter(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "project"
+            framework = Path(temporary) / "framework"
+            emitter = framework / "recompiler/build/psxrecomp-game"
+            emitter.parent.mkdir(parents=True)
+            emitter.touch()
+            self.assertEqual(find_recompiler(root, framework=framework), emitter)
+
     def test_missing_emitter_reports_expected_path(self):
         with tempfile.TemporaryDirectory() as directory:
             expected = Path(directory) / "build-recompiler/psxrecomp-game.exe"

@@ -1,6 +1,6 @@
 find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 
-# Prepare one pinned upstream source in the build tree, never in the submodule.
+# Prepare one pinned upstream source in the build tree, never in the dependency sources.
 function(shadowtower_prepare output source patch)
     set(shader_args)
     set(shader_output)

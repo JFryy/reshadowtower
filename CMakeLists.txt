@@ -1,10 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(NativeShadowTower LANGUAGES C CXX)
 
-set(PSXRECOMP_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/psxrecomp" CACHE PATH "PSXRecomp checkout")
-if(NOT EXISTS "${PSXRECOMP_ROOT}/runtime/runtime.cmake")
-    message(FATAL_ERROR "Missing PSXRecomp. Run: git submodule update --init --recursive")
-endif()
+include(cmake/dependencies.cmake)
 # Upstream defaults to its optional UI; this title always uses its own launcher.
 set(PSX_RECOMP_UI OFF CACHE BOOL "Use the title-owned native launcher" FORCE)
 include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")

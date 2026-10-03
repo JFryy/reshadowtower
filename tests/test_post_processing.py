@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "tests"))
+from dependencies import framework_root
 from prepare_source import prepare
 from test_world_texture_filter import _c_string
 
@@ -108,10 +109,10 @@ class PostFxGL(unittest.TestCase):
             raise unittest.SkipTest(f"GL context unavailable: {error}")
         cls.GL = GL
         try:
-            original = (ROOT / "psxrecomp/runtime/src/gpu_gl_renderer.c").read_text()
+            original = (framework_root() / "runtime/src/gpu_gl_renderer.c").read_text()
             with tempfile.TemporaryDirectory() as directory:
                 output = Path(directory) / "gpu_gl_renderer.c"
-                prepare(ROOT / "psxrecomp/runtime/src/gpu_gl_renderer.c",
+                prepare(framework_root() / "runtime/src/gpu_gl_renderer.c",
                         ROOT / "patches/runtime-graphics.patch", output,
                         [ROOT / "src/world_texture_filter.glsl", ROOT / "src/post_processing.glsl"])
                 generated = output.read_text().replace('#include "post_processing.inc"',

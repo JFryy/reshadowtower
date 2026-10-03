@@ -21,8 +21,9 @@ jobs:
             xorg-server-xvfb xorg-xauth
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
           persist-credentials: false
+      - name: Resolve pinned framework dependencies
+        run: python3 tools/dependencies.py
       - name: Check shell syntax
         run: bash -n scripts/build.sh scripts/run.sh
       - name: Run tests with required software OpenGL coverage

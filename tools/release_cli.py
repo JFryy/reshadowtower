@@ -21,6 +21,7 @@ def command_arguments(arguments: list[str]) -> list[str]:
         index = result.index("--prune-after")
         del result[index:index + 2]
     if result[0] == "rebuild":
+        result.append(f"--cmake-extra=-DPSXRECOMP_ROOT={ROOT / 'psxrecomp'}")
         result += ["--no-toolchain-download", "--no-pgo"]
         result.extend(f"--cmake-extra={option}" for option in OFFLINE_CMAKE_OPTIONS)
     return result

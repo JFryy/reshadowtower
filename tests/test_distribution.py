@@ -9,6 +9,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import build_bundled_sdl
 import package_release
+import dependencies
 
 
 class DistributionTests(unittest.TestCase):
@@ -25,7 +26,7 @@ class DistributionTests(unittest.TestCase):
             for path in paths.values():
                 path.write_bytes(b"built binary")
             from bundled_toolchain import PINS
-            metadata = {"source_fingerprint": "original", "platform": "linux-x64",
+            metadata = {"source_fingerprint": "original", "dependency_pins": dependencies.dependency_pins(), "platform": "linux-x64",
                         "toolchain_sha256": PINS["linux-x64"][1],
                         "binaries": {name: package_release.file_hash(path) for name, path in paths.items()}}
             sdl = root / "bundled-sdl"
@@ -79,21 +80,51 @@ class DistributionTests(unittest.TestCase):
                 package_release.imgui_hashes(source)
 
     def test_source_export_keeps_vendor_headers_but_excludes_game_code(self):
-        root = package_release.ROOT
-        paths = [root / "psxrecomp/generated/private_game.c",
-                 root / "psxrecomp/recompiler/lib/rabbitizer/include/generated/InstrId_enum.h",
-                 root / "psxrecomp/recompiler/tests/test.cpp",
-                 root / "psxrecomp/bios/openbios.bin",
-                 root / "psxrecomp/bios/SCPH1001.BIN"]
-        with mock.patch.object(package_release, "PROJECT_FILES", ()), \
-             mock.patch.object(package_release, "tracked_files", side_effect=lambda repo: paths if repo.name == "psxrecomp" else []):
-            exported = list(package_release.source_files())
-        self.assertEqual([path for path in exported if "launcher" not in path.parts], paths[1:4])
-        self.assertTrue(any(path.name == "CMakeLists.txt" and "launcher" in path.parts for path in exported))
-        self.assertFalse(any("recomp-ui" in path.parts for path in exported))
-        self.assertFalse(any("imgui" in path.parts for path in exported))
-        for name in ("artwork.hpp", "bindings.hpp", "bindings_tests.cpp"):
-            self.assertIn(root / "launcher" / name, exported)
+        with tempfile.TemporaryDirectory() as directory, \
+             mock.patch.object(dependencies, "framework_inventory") as inventory:
+            framework = Path(directory) / "external-framework"
+            names = ("generated/private_game.c", "recompiler/include/generated/InstrId_enum.h",
+                         "recompiler/tests/test.cpp", "bios/openbios.bin", "bios/SCPH1001.BIN",
+                         "build-output/file.cpp", "CMakeFiles/cache.cpp", "saves/card.mcd",
+                         ".git", ".gitmodules", "__pycache__/module.pyc", "CMakeCache.txt",
+                     "cmake-build-debug/output.c")
+            inventory.return_value = {Path(name) for name in names}
+            for name in (*names, ".env", "credentials.txt", "recompiler/private-data.json"):
+                path = framework / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"source")
+            exported = dict(package_release.source_files(framework))
+            self.assertEqual(exported[framework / "recompiler/include/generated/InstrId_enum.h"],
+                             Path("psxrecomp/recompiler/include/generated/InstrId_enum.h"))
+            self.assertIn(framework / "bios/openbios.bin", exported)
+            for name in (".env", "credentials.txt", "recompiler/private-data.json"):
+                self.assertNotIn(framework / name, exported)
+            for name in ("generated/private_game.c", "bios/SCPH1001.BIN",
+                         "build-output/file.cpp", "CMakeFiles/cache.cpp", "saves/card.mcd",
+                         ".git", ".gitmodules", "__pycache__/module.pyc", "CMakeCache.txt",
+                         "cmake-build-debug/output.c"):
+                self.assertNotIn(framework / name, exported)
+            self.assertIn((package_release.ROOT / "launcher/artwork.hpp", Path("launcher/artwork.hpp")),
+                          exported.items())
+            first = package_release.source_fingerprint(framework)
+            relocated = Path(directory) / "relocated"
+            framework.rename(relocated)
+            self.assertEqual(first, package_release.source_fingerprint(relocated))
+            (relocated / "recompiler/tests/test.cpp").write_bytes(b"tampered")
+            self.assertNotEqual(first, package_release.source_fingerprint(relocated))
+            (relocated / "recompiler/tests/test.cpp").unlink()
+            (relocated / "recompiler/tests/test.cpp").symlink_to(relocated / "credentials.txt")
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                list(package_release.framework_sources(relocated))
+
+    def test_dependency_pins_must_match_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            build = Path(directory)
+            (build / "release-build.json").write_text(json.dumps({
+                "source_fingerprint": "original", "dependency_pins": []}))
+            with mock.patch.object(package_release, "source_fingerprint", return_value="original"):
+                with self.assertRaisesRegex(ValueError, "Dependency pins"):
+                    package_release.validate_build(SimpleNamespace(build=build))
 
     def test_launcher_keeps_fixed_cover_and_retro_font(self):
         root = package_release.ROOT
@@ -106,7 +137,7 @@ class DistributionTests(unittest.TestCase):
 
     def test_native_build_explicitly_disables_upstream_ui_without_submodule(self):
         root = package_release.ROOT
-        self.assertNotIn("recomp-ui", (root / ".gitmodules").read_text())
+        self.assertFalse((root / ".gitmodules").exists())
         cmake = (root / "CMakeLists.txt").read_text()
         disable = cmake.index("set(PSX_RECOMP_UI OFF CACHE BOOL")
         upstream = cmake.index('include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")')

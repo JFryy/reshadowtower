@@ -12,6 +12,7 @@ import sys
 
 import bundled_toolchain
 import build_bundled_sdl
+import dependencies
 import package_release
 from release_common import file_hash
 
@@ -38,7 +39,9 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
         raise ValueError("Linux builds require --sdl-archive")
     if output.exists() or output.is_symlink():
         raise FileExistsError(f"Refusing to replace existing output: {output}")
-    fingerprint = package_release.source_fingerprint()
+    framework = dependencies.framework_root()
+    pins = dependencies.dependency_pins()
+    fingerprint = package_release.source_fingerprint(framework)
     output.mkdir(parents=True)
     pack = output / "toolchain"
     bundled_toolchain.extract_verified(archive, pack, bundled_toolchain.PINS[target][1])
@@ -56,7 +59,7 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
         sdl = build_bundled_sdl.build(sdl_archive, output, pack, env)
 
     source = output / "source"
-    package_release.copy_sources(source)
+    package_release.copy_sources(source, framework)
     common = [f"-DCMAKE_MAKE_PROGRAM={ninja}", f"-DCMAKE_C_COMPILER={cc}",
               f"-DCMAKE_CXX_COMPILER={cxx}", f"-DPython3_EXECUTABLE={python}",
               "-DCMAKE_BUILD_TYPE=Release"]
@@ -84,7 +87,8 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
         sdl_config = next((path for path in candidates if (path / "SDL3Config.cmake").is_file()), None)
         if sdl_config is None:
             raise ValueError("Bundled Windows SDL3 SDK is missing; re-extract the pinned toolchain.")
-    launcher_options = [f"-DSDL3_DIR={sdl_config}"]
+    launcher_options = [f"-DSDL3_DIR={sdl_config}",
+                        f"-DPSXRECOMP_ROOT={source / 'psxrecomp'}"]
     configure(source / "launcher", host, launcher_options)
     compile(host, ["shadowtower-launcher", "launcher-model-tests", "launcher-bindings-tests"])
     for test in ("launcher-model-tests", "launcher-bindings-tests"):
@@ -98,10 +102,10 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
         compile(wrapper, ["ReShadowTower"])
         binaries["ReShadowTower.exe"] = wrapper / "ReShadowTower.exe"
     hashes = {name: file_hash(path) for name, path in binaries.items()}
-    if package_release.source_fingerprint() != fingerprint:
+    if package_release.source_fingerprint(framework) != fingerprint or dependencies.dependency_pins() != pins:
         raise ValueError("Source fingerprint changed during build; discard this output and retry")
     metadata = {"platform": target, "toolchain_sha256": bundled_toolchain.PINS[target][1],
-                "source_fingerprint": fingerprint, "emitters": str(emitters), "binaries": hashes,
+                "source_fingerprint": fingerprint, "dependency_pins": pins, "emitters": str(emitters), "binaries": hashes,
                 "imgui": package_release.imgui_hashes(package_release.imgui_source(host))}
     if target == "linux-x64":
         metadata["sdl"] = {"archive_sha256": build_bundled_sdl.SHA256,

@@ -1,6 +1,8 @@
 # Build outputs
 /build/
 /build-*/
+# Optional local framework sources; builds fetch their pinned inputs under build-dependencies.
+/psxrecomp/
 /out/
 /.happypath/
 

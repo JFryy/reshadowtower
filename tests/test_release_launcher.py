@@ -135,6 +135,8 @@ class ReleaseLauncherTests(unittest.TestCase):
         self.assertIn("--no-toolchain-download", args)
         self.assertNotIn("--prune-after", args)
         self.assertIn("--cmake-extra=-DPSX_SDL3_FETCH=OFF", args)
+        self.assertIn("--cmake-extra=-DFETCHCONTENT_FULLY_DISCONNECTED=ON", args)
+        self.assertIn(f"--cmake-extra=-DPSXRECOMP_ROOT={cli.ROOT / 'psxrecomp'}", args)
         with self.assertRaises(ValueError):
             cli.command_arguments(["ensure-toolchain", "--download"])
 
