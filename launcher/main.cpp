@@ -359,7 +359,7 @@ int main(int argc, char** argv) {
             if (ImGui::Button("Play game", ImVec2(170 * uiScale, 44 * uiScale))) start("play");
             ImGui::EndDisabled();
             if (!ready) { hint("Use Disc setup to verify your disc and install the game."); }
-            else hint(settings.widescreen ? "Widescreen gameplay. Menus stretch to fill." : "Original 4:3 presentation.");
+            else hint(settings.widescreen ? "Wider 3D view. HUD and menus stretch to fill." : "Original 4:3 presentation.");
         } else if (page == 1) {
             ImGui::BeginDisabled(!settingsLoaded);
             ImGui::TextUnformatted("Graphics");
@@ -370,7 +370,7 @@ int main(int argc, char** argv) {
             ImGui::SetNextItemWidth(160 * uiScale);
             dirty |= ImGui::Combo("Aspect ratio", &settings.wideRatio, "16:9\0" "21:9\0");
             ImGui::EndDisabled();
-            hint(settings.widescreen ? "More scenery is rendered at the sides; menus stretch to fill. Some edge geometry may be incomplete." : "Original 4:3 presentation. Your wide-ratio preference is remembered.");
+            hint(settings.widescreen ? "Wider 3D projection into the original-width framebuffer. HUD and menus stretch to fill. Increase resolution scale for a sharper image." : "Original 4:3 presentation. Your wide-ratio preference is remembered.");
             int displayMode = settings.fullscreen ? 1 : 0;
             ImGui::SetNextItemWidth(210 * uiScale);
             if (ImGui::Combo("Display mode", &displayMode, "Windowed\0Fullscreen (desktop)\0")) {

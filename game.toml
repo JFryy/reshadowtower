@@ -60,6 +60,9 @@ pgxp_tolerance = 1.0
 # Shadow Tower projects 3D geometry but has no sprite-tag gameplay hooks.
 # Without this detector, even gameplay is treated as a 4:3 menu.
 gte_game_mode = true
+# Project the wider view into the original framebuffer. The separate wide
+# surface exposes missing edge geometry and incomplete screen-space effects.
+native_wide = false
 
 [controller]
 default_mode = "digital"

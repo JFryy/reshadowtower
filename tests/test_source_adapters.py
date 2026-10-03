@@ -33,6 +33,7 @@ class SourceAdapterTests(unittest.TestCase):
     def test_widescreen_recognizes_3d_gameplay_without_forcing_2d_geometry(self):
         config = tomllib.loads((ROOT / "game.toml").read_text())
         self.assertTrue(config["widescreen"]["gte_game_mode"])
+        self.assertFalse(config["widescreen"].get("native_wide", True))
         self.assertFalse(config["widescreen"].get("full_2d", False))
         self.assertEqual(config["video"]["aspect_ratio"], "4:3")
 
