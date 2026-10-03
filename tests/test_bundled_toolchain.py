@@ -58,14 +58,15 @@ class BundledToolchainTests(unittest.TestCase):
         self.assertEqual((self.destination / "tool").read_bytes(), b"old")
 
     def test_valid_archive(self):
-        digest = self.make_archive([
-            ("bin/tool", b"hello", stat.S_IFREG | 0o755),
-            ("bin/alias", b"tool", stat.S_IFLNK | 0o777),
-        ])
-        extract_verified(self.archive, self.destination, digest)
-        self.assertEqual((self.destination / "bin/alias").read_bytes(), b"hello")
-        self.assertTrue((self.destination / "bin/alias").is_symlink())
+        entries = [("bin/tool", b"hello", stat.S_IFREG | 0o755)]
         if sys.platform != "win32":
+            entries.append(("bin/alias", b"tool", stat.S_IFLNK | 0o777))
+        digest = self.make_archive(entries)
+        extract_verified(self.archive, self.destination, digest)
+        self.assertEqual((self.destination / "bin/tool").read_bytes(), b"hello")
+        if sys.platform != "win32":
+            self.assertEqual((self.destination / "bin/alias").read_bytes(), b"hello")
+            self.assertTrue((self.destination / "bin/alias").is_symlink())
             self.assertTrue((self.destination / "bin/tool").stat().st_mode & stat.S_IXUSR)
 
 

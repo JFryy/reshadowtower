@@ -112,10 +112,11 @@ class DistributionTests(unittest.TestCase):
             self.assertEqual(first, package_release.source_fingerprint(relocated))
             (relocated / "recompiler/tests/test.cpp").write_bytes(b"tampered")
             self.assertNotEqual(first, package_release.source_fingerprint(relocated))
-            (relocated / "recompiler/tests/test.cpp").unlink()
-            (relocated / "recompiler/tests/test.cpp").symlink_to(relocated / "credentials.txt")
-            with self.assertRaisesRegex(ValueError, "symlink"):
-                list(package_release.framework_sources(relocated))
+            linked_source = relocated / "recompiler/tests/test.cpp"
+            with mock.patch.object(Path, "is_symlink", autospec=True,
+                                   side_effect=lambda path: path == linked_source):
+                with self.assertRaisesRegex(ValueError, "symlink"):
+                    list(package_release.framework_sources(relocated))
 
     def test_dependency_pins_must_match_build(self):
         with tempfile.TemporaryDirectory() as directory:
