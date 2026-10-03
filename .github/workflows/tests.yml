@@ -80,3 +80,15 @@ jobs:
           test -s build-offline/emitters/psxrecomp-game.exe
           test -s build-offline/emitters/psxrecomp-bios.exe
           test -s build-offline/launcher/ReShadowTower.exe
+      - name: Stage and check the offline release payload
+        run: |
+          python tools/package_release.py --build build-offline/host \
+            --emitters build-offline/emitters --platform windows-x64 \
+            --toolchain-archive build-inputs/toolchain.zip \
+            --windows-launcher build-offline/launcher/ReShadowTower.exe \
+            --output dist/package
+          test -s dist/package/release.json
+          test -s dist/package/payload/launcher/bundled-imgui/imgui.cpp
+          test -s dist/package/payload/psxrecomp/runtime/runtime.cmake
+          test -s dist/package/payload/psxrecomp/lib/recomp-net/CMakeLists.txt
+          test -s dist/package/payload/psxrecomp/lib/retcomm-rbengine/CMakeLists.txt
