@@ -108,11 +108,35 @@ class ReleaseLauncherTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unlisted"):
             launcher.verify_payload(root, {})
 
+    @unittest.skipIf(launcher.os.name == "nt", "Windows wrapper shows bootstrap errors")
+    def test_bootstrap_failure_uses_native_error_dialog(self):
+        with mock.patch.object(launcher, "__file__", str(self.root / "launch_release.py")), \
+             mock.patch.object(launcher, "data_directory", return_value=self.root / "data"), \
+             mock.patch.object(launcher, "prepare_launch", side_effect=ValueError("integrity check failed")), \
+             mock.patch.object(launcher.subprocess, "run") as run, \
+             mock.patch.object(sys, "stderr", new_callable=io.StringIO):
+            self.assertEqual(launcher.main(), 1)
+        self.assertEqual(run.call_args.args[0][:2], [str(self.root / "shadowtower-launcher"), "--error"])
+        self.assertIn("integrity check failed", run.call_args.args[0][2])
+
+    def test_bootstrap_always_opens_native_launcher(self):
+        env = {"RETCOMM_PYTHON": "/bundled/python"}
+        with mock.patch.object(launcher.subprocess, "run") as run:
+            launcher.run_launcher(self.root, self.root / "workspace", env, io.StringIO())
+        command = run.call_args.args[0]
+        self.assertEqual(Path(command[0]).stem, "shadowtower-launcher")
+        self.assertIn("--workspace", command)
+        self.assertIn(str(self.root / "workspace/tools/launcher_backend.py"), command)
+        self.assertNotIn("--launcher", command)
+        self.assertEqual(run.call_args.kwargs["env"], env)
+
     def test_rebuild_disables_downloads_and_cleanup(self):
         args = cli.command_arguments(["rebuild", "--prune-after", "build-intermediates"])
         self.assertIn("--no-toolchain-download", args)
         self.assertNotIn("--prune-after", args)
         self.assertIn("--cmake-extra=-DPSX_SDL3_FETCH=OFF", args)
+        self.assertIn("--cmake-extra=-DFETCHCONTENT_FULLY_DISCONNECTED=ON", args)
+        self.assertIn(f"--cmake-extra=-DPSXRECOMP_ROOT={cli.ROOT / 'psxrecomp'}", args)
         with self.assertRaises(ValueError):
             cli.command_arguments(["ensure-toolchain", "--download"])
 

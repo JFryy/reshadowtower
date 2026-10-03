@@ -38,7 +38,10 @@ def _validate(archive: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, tuple[str
     entries = []
     seen: dict[tuple[str, ...], str] = {}
     for info in archive.infolist():
-        parts = _parts(info.filename)
+        # ZipInfo normalizes Windows separators and truncates names at NUL.
+        if info.orig_filename != info.filename:
+            raise ValueError(f"Unsafe archive path: {info.orig_filename!r}")
+        parts = _parts(info.orig_filename)
         mode = info.external_attr >> 16
         kind = stat.S_IFMT(mode)
         if kind not in (0, stat.S_IFREG, stat.S_IFDIR, stat.S_IFLNK):

@@ -1,0 +1,19 @@
+# source-sha256: 15fd23864309bca1e32da00480c770f0e8d8c303f3eff505563cdc5993edd835
+--- a/psxrecomp/runtime/src/gpu.c
++++ b/psxrecomp/runtime/src/gpu.c
+@@ -332,5 +332,15 @@
+     return ws_full_2d || env;
+ }
++/* The USA menu routine sets this byte to 1 on entry and 2 on exit.
++ * Confirm its two stores before trusting RAM that another executable may own. */
++static int shadowtower_menu_active(void) {
++    return psx_read_word(0x80042E74u) == 0xA046B6DAu &&
++           psx_read_word(0x8004316Cu) == 0xA062B6DAu &&
++           psx_read_byte(0x8018B6DAu) == 1;
++}
++
+ static int ws_game_mode(void) {
++    /* Do not keep the menu in native-wide during the 45-frame GTE hold. */
++    if (ws_gte_game_mode_cfg && shadowtower_menu_active()) return 0;
+     int state_match = ws_gameplay_state_matches();
+     if (state_match >= 0) return state_match;

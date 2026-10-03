@@ -11,10 +11,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import queue
-import threading
 import traceback
 from collections.abc import Iterator
+from typing import TextIO
 
 # Isolated Python excludes the script directory; load only our packaged helpers.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -137,7 +136,7 @@ def prepare_launch(package: Path, data: Path) -> tuple[Path, dict[str, str]]:
     # The child executable lives in user data, not in the AppImage. Inherited
     # APPIMAGE makes the runtime resolve BIOS/assets beside the outer archive.
     for key in ("APPIMAGE", "APPDIR", "ARGV0", "OWD", "CC", "CXX", "CMAKE_PREFIX_PATH", "SDL3_DIR", "ZLIB_ROOT", "PYTHONPATH", "PYTHONHOME",
-                "CMAKE", "PYTHON", "PSXRECOMP_PROJECT_ROOT", "PSXRECOMP_BUILD_DIR", "TOOLCHAIN_DIR", "BPE_TOOLCHAIN_DIR"):
+                "CMAKE", "PYTHON", "PSXRECOMP_ROOT", "PSXRECOMP_PROJECT_ROOT", "PSXRECOMP_BUILD_DIR", "TOOLCHAIN_DIR", "BPE_TOOLCHAIN_DIR"):
         env.pop(key, None)
     python = pack / ("python/python.exe" if os.name == "nt" else "python/bin/python3")
     env.update({
@@ -161,6 +160,19 @@ def prepare_launch(package: Path, data: Path) -> tuple[Path, dict[str, str]]:
     return workspace, env
 
 
+def run_launcher(package: Path, workspace: Path, env: dict[str, str],
+                 log: TextIO) -> subprocess.CompletedProcess:
+    """Hand off to the native UI while the bootstrap retains the save lock."""
+    executable = package / ("shadowtower-launcher.exe" if os.name == "nt" else "shadowtower-launcher")
+    return subprocess.run(
+        [str(executable), "--python", env["RETCOMM_PYTHON"],
+         "--backend", str(workspace / "tools/launcher_backend.py"),
+         "--workspace", str(workspace)],
+        cwd=workspace, env=env, stdout=log, stderr=subprocess.STDOUT,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+    )
+
+
 def main() -> int:
     package = Path(__file__).resolve().parent
     data = data_directory()
@@ -169,42 +181,8 @@ def main() -> int:
     with log_path.open("a", encoding="utf-8", buffering=1) as log:
         try:
             with session_lock(data):
-                import tkinter as tk
-                from tkinter import ttk
-                window = tk.Tk()
-                window.title("ReShadowTower")
-                ttk.Label(window, text="Preparing ReShadowTower...\nFirst launch installs the bundled tools. No downloads are needed.", padding=24).pack()
-                progress = ttk.Progressbar(window, mode="indeterminate", length=420)
-                progress.pack(padx=24, pady=(0, 24))
-                progress.start()
-                # Do not abandon a background copy midway by closing the window.
-                window.protocol("WM_DELETE_WINDOW", lambda: None)
-                results: queue.Queue[tuple[Path, dict[str, str]] | Exception] = queue.Queue()
-
-                def prepare() -> None:
-                    try:
-                        results.put(prepare_launch(package, data))
-                    except Exception as error:
-                        results.put(error)
-
-                threading.Thread(target=prepare, daemon=True).start()
-
-                def poll() -> None:
-                    if results.empty():
-                        window.after(100, poll)
-                    else:
-                        progress.stop()
-                        window.destroy()
-
-                window.after(100, poll)
-                window.mainloop()
-                result = results.get()
-                if isinstance(result, Exception):
-                    raise result
-                workspace, env = result
-                executable = workspace / ("Shadow_Tower_Recompiled.exe" if os.name == "nt" else "Shadow_Tower_Recompiled")
-                completed = subprocess.run([str(executable), "--launcher"], cwd=workspace,
-                                           env=env, stdout=log, stderr=subprocess.STDOUT)
+                workspace, env = prepare_launch(package, data)
+                completed = run_launcher(package, workspace, env, log)
                 if completed.returncode:
                     raise RuntimeError(f"The game or setup exited with code {completed.returncode}.")
                 return 0
@@ -213,13 +191,13 @@ def main() -> int:
             reason = ("Could not copy the bundled files. Check free disk space and write permissions, then retry."
                       if isinstance(error, shutil.Error) else str(error))
             message = f"ReShadowTower could not start: {reason}\n\nDetails: {log_path}\nExisting saves have not been removed."
+            print(message, file=sys.stderr)
             if os.name != "nt":
                 try:
-                    from tkinter import messagebox
-                    messagebox.showerror("ReShadowTower", message)
-                except Exception as dialog_error:
-                    log.write(f"Could not show error dialog: {dialog_error}\n")
-                    print(message, file=sys.stderr)
+                    subprocess.run([str(package / "shadowtower-launcher"), "--error", message],
+                                   check=True, stdout=log, stderr=subprocess.STDOUT)
+                except (OSError, subprocess.SubprocessError) as dialog_error:
+                    log.write(f"Could not show native error dialog: {dialog_error}\n")
             return 1
 
 
