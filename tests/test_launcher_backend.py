@@ -42,6 +42,57 @@ class LauncherBackendTests(unittest.TestCase):
                 backend.setup(self.root, self.disc)
         self.assertEqual(run.call_count, 1)
 
+    def source_checkout(self):
+        (self.root / "scripts").mkdir()
+        (self.root / "scripts/build.sh").touch()
+        executable = self.root / "build-release" / (
+            "Shadow_Tower_Recompiled.exe" if backend.os.name == "nt" else "Shadow_Tower_Recompiled"
+        )
+        executable.parent.mkdir()
+        executable.write_bytes(b"built game")
+        return executable
+
+    def test_source_setup_uses_selected_disc_and_records_ready_build(self):
+        executable = self.source_checkout()
+        bios = self.root / "my BIOS.bin"
+        bios.touch()
+        with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, \
+             mock.patch.object(sys, "stdout", new_callable=io.StringIO):
+            backend.setup(self.root, self.disc, bios)
+        self.assertEqual(run.call_args.args[0], [
+            "bash", str(self.root / "scripts/build.sh"), str(self.disc), str(bios),
+        ])
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.kwargs["cwd"], self.root)
+        self.assertEqual((self.root / ".build-ready").read_text().strip(), backend.file_hash(executable))
+
+    def test_source_setup_failure_invalidates_ready_build(self):
+        self.source_checkout()
+        ready = self.root / ".build-ready"
+        ready.write_text("old build")
+        with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=1)), \
+             mock.patch.object(sys, "stdout", new_callable=io.StringIO):
+            with self.assertRaisesRegex(RuntimeError, "Source setup failed.*launcher-actions.log"):
+                backend.setup(self.root, self.disc)
+        self.assertFalse(ready.exists())
+
+    def test_source_setup_without_binary_does_not_mark_ready(self):
+        self.source_checkout().unlink()
+        with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=0)), \
+             mock.patch.object(sys, "stdout", new_callable=io.StringIO):
+            with self.assertRaises(FileNotFoundError):
+                backend.setup(self.root, self.disc)
+        self.assertFalse((self.root / ".build-ready").exists())
+
+    def test_source_setup_without_bios_does_not_pass_empty_argument(self):
+        self.source_checkout()
+        with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, \
+             mock.patch.object(sys, "stdout", new_callable=io.StringIO):
+            backend.setup(self.root, self.disc)
+        self.assertEqual(run.call_args.args[0], [
+            "bash", str(self.root / "scripts/build.sh"), str(self.disc),
+        ])
+
     def test_missing_disc_does_not_start_setup(self):
         with mock.patch.object(backend.subprocess, "run") as run:
             with self.assertRaises(FileNotFoundError):

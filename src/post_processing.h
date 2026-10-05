@@ -9,6 +9,18 @@ typedef struct ShadowtowerPostFx {
     float exposure, contrast, saturation, grain, dither, bloom, scanlines, mask, curvature;
 } ShadowtowerPostFx;
 
+/* Parse one optional advanced-effect strength, defaulting safely to off. */
+static int shadowtower_postfx_strength(const char *text, float *out) {
+    *out = 0.f;
+    if (!text) return 1;
+    float value;
+    int consumed = 0;
+    if (sscanf(text, "%f%n", &value, &consumed) != 1 || text[consumed] != '\0' ||
+        !isfinite(value) || value < 0.f || value > 1.f) return 0;
+    *out = value;
+    return 1;
+}
+
 /* Validate the complete launcher payload before enabling any effect. */
 static int shadowtower_postfx_parse(const char *text, ShadowtowerPostFx *out) {
     const ShadowtowerPostFx neutral = {0, 0.f, 1.f, 1.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f};

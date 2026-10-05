@@ -90,10 +90,30 @@ int main() {
                 fields[5] == s.postFx.bloom && fields[6] == s.postFx.scanlines &&
                 fields[7] == s.postFx.mask && fields[8] == s.postFx.curvature);
         require(launcher::load(root).postFx.curvature == .2f);
+        s.postFx.fxaa = true;
+        s.postFx.sharpen = .5f;
+        launcher::save(root, s);
+        const auto advanced = launcher::load(root).postFx;
+        require(advanced.fxaa && advanced.sharpen == .5f);
+        require(launcher::postFxPreset(advanced) == launcher::PostFxPreset::custom);
+        const auto advancedEnv = launcher::gameEnvironment(s);
+        require(advancedEnv[5].first == "SHADOWTOWER_FXAA" && advancedEnv[5].second == "1");
+        require(advancedEnv[6].first == "SHADOWTOWER_SHARPEN" && advancedEnv[6].second == "0.500000");
+        for (float invalid : {-.01f, 1.01f, std::numeric_limits<float>::infinity(),
+                              std::numeric_limits<float>::quiet_NaN()}) {
+            s.postFx.sharpen = invalid;
+            bool rejected = false;
+            try { launcher::save(root, s); } catch (const std::invalid_argument&) { rejected = true; }
+            require(rejected);
+        }
+        s.postFx.sharpen = .5f;
         s.postFx.enabled = false;
         launcher::save(root, s);
         require(launcher::gameEnvironment(s)[4].second == "0" &&
                 !launcher::load(root).postFx.enabled && launcher::load(root).postFx.curvature == .2f);
+        require(launcher::gameEnvironment(s)[5].second == "0" &&
+                launcher::gameEnvironment(s)[6].second == "0");
+        require(launcher::load(root).postFx.fxaa && launcher::load(root).postFx.sharpen == .5f);
         const auto beforeInvalid = launcher::parse(root / "build-release/settings.toml");
         for (float invalid : {-.01f, .201f, std::numeric_limits<float>::infinity(),
                               std::numeric_limits<float>::quiet_NaN()}) {
@@ -105,9 +125,10 @@ int main() {
         }
         s.postFx.curvature = .2f;
         std::ofstream(root / "build-release/settings.toml") <<
-            "[post_processing]\nenabled = true\nexposure = 3.0\ncontrast = -1.0\nunknown = 'kept'\n";
+            "[post_processing]\nenabled = true\nexposure = 3.0\ncontrast = -1.0\nsharpen = 2.0\nunknown = 'kept'\n";
         auto fallback = launcher::load(root);
         require(fallback.postFx.enabled && fallback.postFx.exposure == 0 && fallback.postFx.contrast == 1);
+        require(!fallback.postFx.fxaa && fallback.postFx.sharpen == 0);
         launcher::save(root, fallback);
         require(toml::find<std::string>(launcher::parse(root / "build-release/settings.toml"),
                                         "post_processing", "unknown") == "kept");

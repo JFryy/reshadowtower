@@ -121,6 +121,11 @@ def run(args: argparse.Namespace) -> int:
     framework = framework_root()
     recompiler = find_recompiler(framework=framework)
     env = clean_environment()
+    subprocess.run(
+        ["cmake", f"-DPSXRECOMP_ROOT={framework}",
+         "-P", str(ROOT / "cmake/generate_codegen_hash.cmake")],
+        check=True, env=env,
+    )
 
     extract_command = [
         sys.executable,

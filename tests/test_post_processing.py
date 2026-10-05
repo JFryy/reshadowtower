@@ -31,6 +31,12 @@ class PostFxParser(unittest.TestCase):
 #include "post_processing.h"
 int main(void) {
     ShadowtowerPostFx p;
+    float strength;
+    assert(shadowtower_postfx_strength(NULL, &strength) && strength == 0.f);
+    assert(shadowtower_postfx_strength("0.5", &strength) && strength == .5f);
+    const char *invalid_strengths[] = {"", "nan", "inf", "-0.1", "1.1", "0.5x"};
+    for (unsigned i = 0; i < sizeof(invalid_strengths)/sizeof(invalid_strengths[0]); ++i)
+        assert(!shadowtower_postfx_strength(invalid_strengths[i], &strength) && strength == 0.f);
     assert(shadowtower_postfx_parse(NULL, &p) && !p.enabled);
     assert(shadowtower_postfx_parse("0", &p) && !p.enabled);
     assert(shadowtower_postfx_parse("1,1,1,0,0.1,0.5,0.5,0.5,0.5,0.1", &p));
@@ -179,7 +185,8 @@ class PostFxGL(unittest.TestCase):
     def _render(self, mode="present", enabled=0, original=False, pixels=None,
                 rect=(0., 0., 1., 1.), exposure=0., contrast=1., saturation=1.,
                 grain=0., dither=0., bloom=0., scanlines=0., mask=0., curvature=0.,
-                previous=None, blend_mode=0, sharp=0, linear=False, output_size=None):
+                previous=None, blend_mode=0, sharp=0, linear=False, output_size=None,
+                fxaa=0., sharpen=0.):
         GL = self.GL
         if pixels is None:
             pixels = bytes(v for y in range(16) for x in range(16)
@@ -229,6 +236,7 @@ class PostFxGL(unittest.TestCase):
         uniform("u_postfx_crt", "glUniform4f", curvature, scanlines, mask, 1.)
         uniform("u_postfx_pitch", "glUniform1f", 16.)
         uniform("u_postfx_time", "glUniform1f", 42.)
+        uniform("u_postfx_detail", "glUniform2f", fxaa, sharpen)
         GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
         result = bytes(GL.glReadPixels(0, 0, width, height, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE))
         self.assertEqual(GL.glGetError(), GL.GL_NO_ERROR)
@@ -282,6 +290,48 @@ class PostFxGL(unittest.TestCase):
         curved = self._render(enabled=1, pixels=gray, curvature=.2)
         self.assertNotEqual(curved, baseline)
         self.assertEqual(self._pixel(curved, 0, 0), bytes((0, 0, 0, 255)))
+
+    def test_detail_effects_preserve_flat_images_and_respect_master_switch(self):
+        gray = bytes((96, 96, 96, 255)) * 256
+        for mode in ("present", "interp"):
+            for options in (dict(fxaa=1.), dict(sharpen=1.), dict(fxaa=1., sharpen=1.)):
+                with self.subTest(mode=mode, options=options):
+                    self.assertEqual(self._render(mode=mode, pixels=gray, enabled=1, **options),
+                                     self._render(mode=mode, pixels=gray))
+                    self.assertEqual(self._render(mode=mode, **options), self._render(mode=mode))
+
+    def test_fxaa_smooths_diagonal_edges(self):
+        pixels = bytes(v for y in range(16) for x in range(16)
+                       for v in ((220, 220, 220, 255) if x > y else (30, 30, 30, 255)))
+        for mode in ("present", "interp"):
+            with self.subTest(mode=mode):
+                baseline = self._render(mode=mode, pixels=pixels)
+                result = self._render(mode=mode, pixels=pixels, enabled=1, fxaa=1.)
+                self.assertNotEqual(result, baseline)
+                self.assertTrue(any(35 < value < 215 for value in result[::4]))
+                self.assertTrue(all(29 <= value <= 221 for value in result[::4]))
+                self.assertEqual(result[3::4], baseline[3::4])
+
+    def test_sharpening_adds_contrast_without_ringing(self):
+        levels = (80, 80, 80, 80, 80, 90, 100, 130, 150, 160, 170, 170, 170, 170, 170, 170)
+        pixels = bytes(v for _ in range(16) for x in range(16)
+                       for v in (levels[x], levels[x], levels[x], 255))
+        for mode in ("present", "interp"):
+            with self.subTest(mode=mode):
+                baseline = self._render(mode=mode, pixels=pixels)
+                result = self._render(mode=mode, pixels=pixels, enabled=1, sharpen=1.)
+                self.assertNotEqual(result, baseline)
+                self.assertTrue(all(80 <= value <= 170 for value in result[::4]))
+                self.assertEqual(result[3::4], baseline[3::4])
+
+    def test_detail_effects_do_not_sample_adjacent_vram(self):
+        pixels = bytes(v for _ in range(16) for x in range(16)
+                       for v in ((80, 80, 80, 255) if x < 8 else (255, 0, 0, 255)))
+        rect = (.5/16, .5/16, 7.5/16, 15.5/16)
+        for mode in ("present", "interp"):
+            baseline = self._render(mode=mode, pixels=pixels, rect=rect)
+            result = self._render(mode=mode, pixels=pixels, rect=rect, enabled=1, fxaa=1., sharpen=1.)
+            self.assertEqual(result, baseline)
 
     def test_bloom_clamps_to_display_rect(self):
         pixels = bytearray(bytes((0, 0, 0, 255)) * 256)

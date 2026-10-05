@@ -27,6 +27,8 @@ struct PostFx {
     bool enabled = false;
     float exposure = 0, contrast = 1, saturation = 1, grain = 0, dither = 0;
     float bloom = 0, scanlines = 0, mask = 0, curvature = 0;
+    bool fxaa = false;
+    float sharpen = 0;
 };
 inline bool validPostFx(const PostFx& p) {
     const auto valid = [](float value, float low, float high) {
@@ -35,10 +37,12 @@ inline bool validPostFx(const PostFx& p) {
     return valid(p.exposure, -2, 2) && valid(p.contrast, .5f, 1.5f) &&
            valid(p.saturation, 0, 2) && valid(p.grain, 0, .2f) &&
            valid(p.dither, 0, 1) && valid(p.bloom, 0, 1) &&
-           valid(p.scanlines, 0, 1) && valid(p.mask, 0, 1) && valid(p.curvature, 0, .2f);
+           valid(p.scanlines, 0, 1) && valid(p.mask, 0, 1) && valid(p.curvature, 0, .2f) &&
+           valid(p.sharpen, 0, 1);
 }
 enum class PostFxPreset { original, subtle, crt, custom };
 inline PostFxPreset postFxPreset(const PostFx& p) {
+    if (p.fxaa || p.sharpen != 0) return PostFxPreset::custom;
     if (!p.enabled && p.exposure == 0 && p.contrast == 1 && p.saturation == 1 &&
         p.grain == 0 && p.dither == 0 && p.bloom == 0 && p.scanlines == 0 &&
         p.mask == 0 && p.curvature == 0) return PostFxPreset::original;
@@ -74,7 +78,7 @@ struct Settings {
     PostFx postFx;
 };
 // Translate launcher preferences into overrides consumed by the game runtime.
-inline std::array<std::pair<std::string, std::string>, 5> gameEnvironment(const Settings& s) {
+inline std::array<std::pair<std::string, std::string>, 7> gameEnvironment(const Settings& s) {
     std::string postFx = "0";
     if (s.postFx.enabled) {
         std::ostringstream out;
@@ -90,7 +94,9 @@ inline std::array<std::pair<std::string, std::string>, 5> gameEnvironment(const 
              {"PSX_VSYNC", s.vsync ? "1" : "0"},
              {"PSX_LOW_LATENCY_INPUT", s.lowLatency ? "1" : "0"},
              {"SHADOWTOWER_MOUSE_SENSITIVITY", std::to_string(s.mouseSensitivity)},
-             {"SHADOWTOWER_POSTFX", postFx}}};
+             {"SHADOWTOWER_POSTFX", postFx},
+             {"SHADOWTOWER_FXAA", s.postFx.enabled && s.postFx.fxaa ? "1" : "0"},
+             {"SHADOWTOWER_SHARPEN", s.postFx.enabled ? std::to_string(s.postFx.sharpen) : "0"}}};
 }
 // Presets alter only graphics quality; custom values and display preferences survive.
 enum class GraphicsPreset { performance, balanced, quality, custom };
@@ -163,6 +169,8 @@ inline void overlay(Settings& s, const toml::value& root) {
         field("scanlines", s.postFx.scanlines, 0, 1);
         field("mask", s.postFx.mask, 0, 1);
         field("curvature", s.postFx.curvature, 0, .2f);
+        s.postFx.fxaa = toml::find_or(p, "fxaa", s.postFx.fxaa);
+        field("sharpen", s.postFx.sharpen, 0, 1);
     }
     if (root.contains("audio") && root.at("audio").is_table()) {
         const int volume = toml::find_or(root.at("audio"), "volume", s.volume);
@@ -216,6 +224,8 @@ inline void save(const fs::path& workspace, const Settings& s) {
     p["scanlines"] = static_cast<double>(s.postFx.scanlines);
     p["mask"] = static_cast<double>(s.postFx.mask);
     p["curvature"] = static_cast<double>(s.postFx.curvature);
+    p["fxaa"] = s.postFx.fxaa;
+    p["sharpen"] = static_cast<double>(s.postFx.sharpen);
     fs::create_directories(file.parent_path());
     auto temporary = file;
     temporary += ".tmp";

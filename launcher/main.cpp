@@ -421,6 +421,10 @@ int main(int argc, char** argv) {
                     ImGui::SetNextItemWidth(210 * uiScale);
                     dirty |= ImGui::SliderFloat(label, &value, low, high, format, ImGuiSliderFlags_AlwaysClamp);
                 };
+                ImGui::TextUnformatted("Anti-aliasing and detail");
+                dirty |= ImGui::Checkbox("FXAA", &fx.fxaa);
+                effect("Adaptive sharpening", fx.sharpen, 0.f, 1.f, "%.2f");
+                hint("FXAA smooths image edges. Sharpening restores local contrast; both also affect text and menus.");
                 ImGui::TextUnformatted("Color grading");
                 effect("Exposure", fx.exposure, -2.f, 2.f, "%+.2f stops");
                 effect("Contrast", fx.contrast, .5f, 1.5f, "%.2fx");

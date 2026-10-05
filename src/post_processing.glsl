@@ -4,6 +4,7 @@ uniform vec2 u_postfx_texture; // grain, dithering
 uniform vec4 u_postfx_crt;     // curvature, scanlines, mask, scanline scale gate
 uniform float u_postfx_pitch;
 uniform float u_postfx_time;
+uniform vec2 u_postfx_detail; // FXAA, adaptive sharpening
 
 // Keep every sample inside the displayed band, never adjacent VRAM content.
 vec2 postfx_clamp(vec2 uv) {
@@ -29,9 +30,64 @@ vec3 postfx_bright(vec2 uv) {
     return max(postfx_sample(postfx_clamp(uv)).rgb - vec3(0.7), vec3(0.0));
 }
 
+// FXAA needs bilinear taps even when the presentation texture uses nearest.
+vec3 postfx_linear(vec2 uv) {
+    vec2 size = vec2(postfx_size());
+    vec2 pixel = uv * size - 0.5;
+    vec2 base = (floor(pixel) + 0.5) / size;
+    vec2 blend = fract(pixel);
+    vec2 step_uv = 1.0 / size;
+    vec3 a = postfx_sample(postfx_clamp(base)).rgb;
+    vec3 b = postfx_sample(postfx_clamp(base + vec2(step_uv.x, 0.0))).rgb;
+    vec3 c = postfx_sample(postfx_clamp(base + vec2(0.0, step_uv.y))).rgb;
+    vec3 d = postfx_sample(postfx_clamp(base + step_uv)).rgb;
+    return mix(mix(a, b, blend.x), mix(c, d, blend.x), blend.y);
+}
+
+float postfx_luma(vec3 rgb) {
+    return dot(rgb, vec3(0.299, 0.587, 0.114));
+}
+
+vec3 postfx_fxaa(vec3 center, vec2 uv) {
+    vec2 step_uv = 1.0 / vec2(postfx_size());
+    float nw = postfx_luma(postfx_linear(uv + vec2(-1.0, -1.0) * step_uv));
+    float ne = postfx_luma(postfx_linear(uv + vec2(1.0, -1.0) * step_uv));
+    float sw = postfx_luma(postfx_linear(uv + vec2(-1.0, 1.0) * step_uv));
+    float se = postfx_luma(postfx_linear(uv + vec2(1.0, 1.0) * step_uv));
+    float middle = postfx_luma(center);
+    float low = min(middle, min(min(nw, ne), min(sw, se)));
+    float high = max(middle, max(max(nw, ne), max(sw, se)));
+    if (high - low < max(0.0312, high * 0.125)) return center;
+    vec2 direction = vec2(-((nw + ne) - (sw + se)), (nw + sw) - (ne + se));
+    float reduce = max((nw + ne + sw + se) * (0.25 * 0.125), 1.0 / 128.0);
+    direction = clamp(direction / (min(abs(direction.x), abs(direction.y)) + reduce),
+                      vec2(-8.0), vec2(8.0)) * step_uv;
+    vec3 a = 0.5 * (postfx_linear(uv - direction / 6.0) + postfx_linear(uv + direction / 6.0));
+    vec3 b = a * 0.5 + 0.25 * (postfx_linear(uv - direction * 0.5) +
+                               postfx_linear(uv + direction * 0.5));
+    float candidate = postfx_luma(b);
+    return candidate < low || candidate > high ? a : b;
+}
+
+vec3 postfx_detail(vec3 center, vec2 uv) {
+    if (u_postfx_detail.x > 0.0) center = postfx_fxaa(center, uv);
+    if (u_postfx_detail.y <= 0.0) return center;
+    vec2 step_uv = 1.0 / vec2(postfx_size());
+    vec3 n = postfx_linear(uv - vec2(0.0, step_uv.y));
+    vec3 s = postfx_linear(uv + vec2(0.0, step_uv.y));
+    vec3 w = postfx_linear(uv - vec2(step_uv.x, 0.0));
+    vec3 e = postfx_linear(uv + vec2(step_uv.x, 0.0));
+    vec3 low = min(center, min(min(n, s), min(w, e)));
+    vec3 high = max(center, max(max(n, s), max(w, e)));
+    float contrast = max(max(high.r - low.r, high.g - low.g), high.b - low.b);
+    float gain = u_postfx_detail.y * (1.0 - sqrt(clamp(contrast, 0.0, 1.0)));
+    // Local extrema bound the result to suppress ringing around hard edges.
+    return clamp(center + (center - (n + s + w + e) * 0.25) * gain, low, high);
+}
+
 vec4 postfx_apply(vec4 color, vec2 uv) {
     if (u_postfx_enabled == 0) return color;
-    vec3 rgb = color.rgb;
+    vec3 rgb = postfx_detail(color.rgb, uv);
     if (u_postfx_color.w > 0.0) {
         vec2 size = vec2(postfx_size());
         vec2 step_uv = (size.y / max(u_postfx_pitch, 1.0)) / size;

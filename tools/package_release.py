@@ -30,6 +30,7 @@ IMGUI_FILES = (
 PROJECT_FILES = (
     "CMakeLists.txt", "game.toml", "config.ini", "VERSION", "LICENSE",
     "cmake/graphics.cmake", "cmake/input.cmake", "cmake/dependencies.cmake",
+    "cmake/generate_codegen_hash.cmake",
     "cmake/dependencies.json", "cmake/dependencies/CMakeLists.txt", "tools/dependencies.py",
     "src/modern_controls.c", "src/modern_controls.h", "src/world_texture_filter.glsl",
     "src/post_processing.h", "src/post_processing_gl.h", "src/post_processing.glsl",
