@@ -56,7 +56,8 @@ jobs:
       - name: Run portable unit tests
         run: |
           python -m unittest tests.test_dependencies tests.test_distribution \
-            tests.test_generate_aot tests.test_launcher_backend tests.test_bundled_toolchain
+            tests.test_generate_aot tests.test_launcher_backend tests.test_bundled_toolchain \
+            tests.test_render_scale
       - name: Download verified Windows toolchain
         run: |
           python - <<'PY'
