@@ -1,0 +1,23 @@
+[
+  {
+    "name": "psxrecomp",
+    "repository": "mstan/psxrecomp",
+    "revision": "ed55299be34710a90fc080484a83e8634bd41fa9",
+    "sha256": "9cfe4b16fe4e1c48a8ed5ad4bf258eccb21295d46ae3ef69bd35988a61671c1b",
+    "path": ""
+  },
+  {
+    "name": "recomp_net",
+    "repository": "RetroPortingToolKit/recomp-net",
+    "revision": "bfa20b403a6d71d01685e8e0a8100d63026716bc",
+    "sha256": "990f3bd486fdee01f8d6d9af479c37499bf22286af360ab72d0aa335ac6b9168",
+    "path": "lib/recomp-net"
+  },
+  {
+    "name": "rbengine",
+    "repository": "RetroPortingToolKit/rbengine",
+    "revision": "a7b98507a62fe00e5aec3b90c52a4134f3c174bc",
+    "sha256": "28350910db6b8bb1dfc5c4e8d788e03570092669ed44076696a697aea6097b6f",
+    "path": "lib/retcomm-rbengine"
+  }
+]

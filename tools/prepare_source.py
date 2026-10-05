@@ -48,12 +48,13 @@ def apply_patch(source: str, patch: str) -> str:
     return "".join(result + original[position:])
 
 
-def prepare(source: Path, patch: Path, output: Path, shader: Path | None = None) -> None:
+def prepare(source: Path, patch: Path, output: Path, shader: Path | list[Path] | None = None) -> None:
     result = apply_patch(source.read_text(encoding="utf-8-sig"), patch.read_text(encoding="utf-8"))
     output.parent.mkdir(parents=True, exist_ok=True)
-    if shader is not None:
-        literals = "\n".join(json.dumps(line + "\n") for line in shader.read_text().splitlines())
-        (output.parent / (shader.stem + ".inc")).write_text(literals + "\n", encoding="utf-8")
+    shaders = [] if shader is None else [shader] if isinstance(shader, Path) else shader
+    for item in shaders:
+        literals = "\n".join(json.dumps(line + "\n") for line in item.read_text().splitlines())
+        (output.parent / (item.stem + ".inc")).write_text(literals + "\n", encoding="utf-8")
     output.write_text(result, encoding="utf-8")
 
 
@@ -62,7 +63,7 @@ if __name__ == "__main__":
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--patch", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--shader", type=Path)
+    parser.add_argument("--shader", type=Path, action="append")
     args = parser.parse_args()
     try:
         prepare(args.source, args.patch, args.output, args.shader)

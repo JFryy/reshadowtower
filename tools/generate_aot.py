@@ -14,8 +14,9 @@ import subprocess
 import sys
 from typing import Any
 
+from dependencies import framework_root
+
 ROOT = Path(__file__).resolve().parents[1]
-FRAMEWORK = ROOT / "psxrecomp"
 _SANITIZE = (
     "PSX_OVERLAY_CACHE_DIR",
     "PSX_OVERLAY_CAPTURES",
@@ -53,14 +54,16 @@ def clean_environment() -> dict[str, str]:
     return env
 
 
-def find_recompiler(root: Path = ROOT, *, windows: bool | None = None) -> Path:
+def find_recompiler(root: Path = ROOT, *, windows: bool | None = None,
+                    framework: Path | None = None) -> Path:
     """Return the native emitter path, failing before code generation starts."""
     if windows is None:
         windows = os.name == "nt"
     name = "psxrecomp-game.exe" if windows else "psxrecomp-game"
     candidates = (
         root / "build-recompiler" / name,
-        root / "psxrecomp" / "recompiler" / "build" / name,
+        (framework if framework is not None else root / "psxrecomp")
+        / "recompiler" / "build" / name,
     )
     for candidate in candidates:
         if candidate.is_file():
@@ -115,12 +118,18 @@ def run(args: argparse.Namespace) -> int:
     captures_path = out_dir / "disc-captures.json"
     filtered_path = out_dir / "filtered-captures.json"
     discovery_dir = out_dir / "discovery"
-    recompiler = find_recompiler()
+    framework = framework_root()
+    recompiler = find_recompiler(framework=framework)
     env = clean_environment()
+    subprocess.run(
+        ["cmake", f"-DPSXRECOMP_ROOT={framework}",
+         "-P", str(ROOT / "cmake/generate_codegen_hash.cmake")],
+        check=True, env=env,
+    )
 
     extract_command = [
         sys.executable,
-        str(FRAMEWORK / "tools/aot_overlay_spike/extract_generic.py"),
+        str(framework / "tools/aot_overlay_spike/extract_generic.py"),
         "--game-toml", str((ROOT / "game.toml").resolve()),
         "--recompiler", str(recompiler),
         "--out", str(captures_path),
@@ -142,12 +151,12 @@ def run(args: argparse.Namespace) -> int:
 
     compile_command = [
         sys.executable,
-        str(FRAMEWORK / "tools/compile_overlays.py"),
+        str(framework / "tools/compile_overlays.py"),
         "--static",
         "--captures", str(filtered_path),
         "--game-toml", str((ROOT / "game.toml").resolve()),
         "--recompiler", str(recompiler),
-        "--runtime-include", str((FRAMEWORK / "runtime/include").resolve()),
+        "--runtime-include", str((framework / "runtime/include").resolve()),
         "--out-dir", str(out_dir),
         "--cps",
         "--jobs", str(args.jobs),

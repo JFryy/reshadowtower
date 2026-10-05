@@ -1,0 +1,19 @@
+# source-sha256: 032f64d04933ea3a2021d91d2fbdcdaad35c0483b55e4d2684bb0c1d7951a876
+--- a/psxrecomp/runtime/src/gpu_sw_renderer.c
++++ b/psxrecomp/runtime/src/gpu_sw_renderer.c
+@@ -30,2 +30,5 @@
+ #include "gpu_sw_renderer.h"
++#include "render_scale.h"
++#include "host_osd.h"
++#include <stdio.h>
+ #include "gpu_vram_dirty.h"
+@@ -482,2 +485,2 @@
+     if (scale < 1) scale = 1;
+-    if (scale > SW_MAX_INTERNAL_SCALE) scale = SW_MAX_INTERNAL_SCALE;
++    if (scale > SHADOWTOWER_MAX_INTERNAL_SCALE) scale = SHADOWTOWER_MAX_INTERNAL_SCALE;
+@@ -495,3 +498,4 @@
+         if (!g_hr) {
+-            /* Allocation failed — fall back to native rendering. */
++            fprintf(stderr, "Shadow Tower: cannot allocate %dx software rendering; using 1x. Lower resolution scale or free memory.\n", scale);
++            host_osd_push("Not enough memory for software rendering at this scale; using 1x.", 8000);
+             g_scale = 1;

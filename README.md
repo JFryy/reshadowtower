@@ -39,7 +39,7 @@ For Windows source builds, use [MSYS2 MINGW64](https://www.msys2.org/) with the
 corresponding `mingw-w64-x86_64-*` packages. Native MSYS2 builds remain unverified.
 
 ```bash
-git clone --recurse-submodules https://github.com/JFryy/reshadowtower.git
+git clone https://github.com/JFryy/reshadowtower.git
 cd reshadowtower
 ```
 
@@ -51,10 +51,11 @@ Place your dump in `disc/` as `Shadow Tower (USA).bin` and
 ./scripts/run.sh
 ```
 
-The first build needs internet access for dependencies. Later launches use
-`./scripts/run.sh`. Output is in `build-release/`; do not share that directory
-between Linux and Windows. For an existing clone, initialize dependencies with
-`git submodule update --init --recursive`.
+The first build needs internet access. CMake fetches checksum-verified framework
+sources into `build-dependencies/`; no Git submodules are needed. To use a complete
+local framework source tree instead, set `PSXRECOMP_ROOT=/path/to/psxrecomp`.
+Later launches use `./scripts/run.sh`. Output is in `build-release/`; do not share
+that directory between Linux and Windows.
 
 Builds compile generated game code and OpenBIOS ahead of time, with interpreter
 fallback for unsupported paths. Not every gameplay path is verified as native.
@@ -114,7 +115,6 @@ For source builds:
 
 ```bash
 git pull --ff-only
-git submodule update --init --recursive
 ./scripts/build.sh
 ```
 
@@ -134,8 +134,8 @@ setup instructions for other Linux distributions, and gameplay fixes.
   [development checks](#development-checks). Describe any manual gameplay tests
   and remaining validation gaps. Use disposable saves for testing.
 - **Framework changes:** keep PSXRecomp fixes separate from title-specific code.
-  Submit shared fixes upstream and explicitly document any submodule revision
-  update; do not leave required changes only in an uncommitted submodule checkout.
+  Submit shared fixes upstream and update the verified pins in
+  `cmake/dependencies.json`; do not rely on changes only in a local source override.
 - **Game data:** never submit disc dumps, extracted executables, generated game
   code, BIOS dumps, memory cards, or save states. Share reproduction steps rather
   than uploading those files.
@@ -143,7 +143,8 @@ setup instructions for other Linux distributions, and gameplay fixes.
 ## Development checks
 
 The tests need no game disc, BIOS image, or generated game code. Install CMake,
-a C compiler, SDL3, and PyOpenGL, then run:
+Ninja, a C compiler, SDL3, and PyOpenGL, then run (the first run fetches the pinned
+framework sources):
 
 ```bash
 python3 tools/run_tests.py

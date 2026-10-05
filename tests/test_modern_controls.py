@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 import shlex
 import subprocess
@@ -6,6 +7,8 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+from dependencies import framework_root
 
 
 class ModernControlsTests(unittest.TestCase):
@@ -17,7 +20,7 @@ class ModernControlsTests(unittest.TestCase):
                 (path / header).touch()
             executable = path / "controls"
             subprocess.run(["cc", "-std=c11", *flags, "-I", directory, "-I", str(ROOT / "src"),
-                            "-I", str(ROOT / "psxrecomp/runtime/include"),
+                            "-I", str(framework_root() / "runtime/include"),
                             str(ROOT / "tests/modern_controls_test.c"), "-lm", "-o", str(executable)], check=True)
             for sensitivity in ("invalid", "2"):
                 with self.subTest(sensitivity=sensitivity):

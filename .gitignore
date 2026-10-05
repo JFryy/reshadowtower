@@ -1,6 +1,8 @@
 # Build outputs
 /build/
 /build-*/
+# Optional local framework sources; builds fetch their pinned inputs under build-dependencies.
+/psxrecomp/
 /out/
 /.happypath/
 
@@ -76,6 +78,8 @@ psx_screenshot.bmp
 psx_freeze_heartbeat.json
 .psxrecomp_last_generate
 .psxrecomp_write_probe
+.build-ready
+.build-ready.tmp
 starvation_dump.jsonl
 
 # Root-level diagnostic dumps; keep the catalog trackable.

@@ -14,11 +14,11 @@ import time
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "psxrecomp/tools"))
-import debug_client  # noqa: E402
 
 
 def query(port: int, command: str, **arguments: Any) -> dict[str, Any]:
+    import debug_client
+
     result = debug_client.query("127.0.0.1", port, {"id": 1, "cmd": command, **arguments})
     if not result.get("ok"):
         raise RuntimeError(f"{command} failed: {result}")
@@ -195,15 +195,23 @@ def main() -> None:
     args = parser.parse_args()
     if args.runs < 1 or not 1 <= args.window <= 60:
         parser.error("runs must be positive and window must be 1–60")
+    from dependencies import dependency_pins, framework_root
+
+    framework = framework_root()
+    sys.path.insert(0, str(framework / "tools"))
     # Fail before launching if the port belongs to an existing process.
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", args.port))
     out = args.out.resolve()
     binary = args.binary.resolve()
     out.mkdir(parents=True, exist_ok=False)
+    override = os.environ.get("PSXRECOMP_ROOT")
     metadata = {
         "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-        "framework_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT / "psxrecomp", text=True).strip(),
+        "framework_commit": next(pin["revision"] for pin in dependency_pins()
+                                 if pin["name"] == "psxrecomp") if not override else None,
+        "framework_source": str(framework),
+        "framework_override": bool(override),
         "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
         "game_toml": (ROOT / "game.toml").read_text(),
         "renderer": args.renderer, "window": args.window, "trace_boot": args.trace_boot,

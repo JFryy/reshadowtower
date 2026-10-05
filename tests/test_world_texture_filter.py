@@ -18,6 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
+from dependencies import framework_root
 from prepare_source import prepare
 
 
@@ -84,7 +85,7 @@ class WorldTextureFilterGL(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as directory:
                 output = Path(directory) / "gpu_gl_renderer.c"
-                prepare(ROOT / "psxrecomp/runtime/src/gpu_gl_renderer.c",
+                prepare(framework_root() / "runtime/src/gpu_gl_renderer.c",
                         ROOT / "patches/runtime-graphics.patch", output, ROOT / "src/world_texture_filter.glsl")
                 generated = output.read_text().replace('#include "world_texture_filter.inc"',
                                                        (output.parent / "world_texture_filter.inc").read_text())
