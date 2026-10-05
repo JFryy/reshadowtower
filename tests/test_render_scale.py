@@ -136,8 +136,8 @@ int main(void) {
 ''')
 
     def test_software_allocation_failure_returns_to_native(self):
-        source = (framework_root() / "runtime/src/gpu_sw_renderer.c").read_text()
-        source = apply_patch(source, (ROOT / "patches/runtime-software.patch").read_text())
+        source = (framework_root() / "runtime/src/gpu_sw_renderer.c").read_text(encoding="utf-8-sig")
+        source = apply_patch(source, (ROOT / "patches/runtime-software.patch").read_text(encoding="utf-8"))
         function = re.search(r"void sw_renderer_set_scale\(int scale\) \{.*?^\}", source, re.S | re.M)
         self.assertIsNotNone(function)
         compile_run(self, r'''
