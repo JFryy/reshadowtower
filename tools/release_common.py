@@ -6,7 +6,9 @@ from pathlib import Path
 
 
 OFFLINE_CMAKE_OPTIONS = (
-    "-DFETCHCONTENT_FULLY_DISCONNECTED=ON",
+    # Allow extraction of vendored archives, but never fall back to network URLs.
+    "-DFETCHCONTENT_FULLY_DISCONNECTED=OFF",
+    "-DPSX_DEPS_OFFLINE=ON",
     "-DPSX_ENABLE_VULKAN=OFF",
     "-DPSX_DEBUG_TOOLS=OFF",
     "-DPSX_SDL3_FETCH=OFF",
