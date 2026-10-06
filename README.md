@@ -1,6 +1,6 @@
 # ReShadowTower
 
-[![Tests](https://github.com/JFryy/reshadowtower/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/JFryy/reshadowtower/actions/workflows/tests.yml)
+[![Tests](https://github.com/JFryy/reshadowtower/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/JFryy/reshadowtower/actions/workflows/tests.yml)
 [![Release build](https://github.com/JFryy/reshadowtower/actions/workflows/release.yml/badge.svg)](https://github.com/JFryy/reshadowtower/actions/workflows/release.yml)
 [![Latest release](https://img.shields.io/github/v/release/JFryy/reshadowtower)](https://github.com/JFryy/reshadowtower/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/JFryy/reshadowtower/total)](https://github.com/JFryy/reshadowtower/releases)
