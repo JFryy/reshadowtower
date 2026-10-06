@@ -1,5 +1,12 @@
 # ReShadowTower
 
+[![Tests](https://github.com/JFryy/reshadowtower/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/JFryy/reshadowtower/actions/workflows/tests.yml)
+[![Release build](https://github.com/JFryy/reshadowtower/actions/workflows/release.yml/badge.svg)](https://github.com/JFryy/reshadowtower/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/JFryy/reshadowtower)](https://github.com/JFryy/reshadowtower/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/JFryy/reshadowtower/total)](https://github.com/JFryy/reshadowtower/releases)
+![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20x64-blue)
+[![License: MIT](https://img.shields.io/github/license/JFryy/reshadowtower)](LICENSE)
+
 <img src="docs/images/shadow-tower-cover.png" alt="Shadow Tower USA PlayStation cover art" width="320">
 
 An experimental Shadow Tower recompilation for Linux and Windows x64.
