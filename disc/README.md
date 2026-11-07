@@ -3,6 +3,10 @@
 Supply your own **Shadow Tower (USA), SLUS-00863** BIN/CUE dump. Other regions
 are not supported. No game files are provided, and no retail BIOS is needed.
 
+The same dump with the
+[UNDUB v1.0 patch](https://archive.org/details/shadow_tower_undub_patch) applied
+is also accepted. Use the filenames below for the patched BIN/CUE as well.
+
 Place these two files directly in this directory, not inside a ZIP or subfolder:
 
 ```text

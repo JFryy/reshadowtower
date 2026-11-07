@@ -12,20 +12,26 @@ text_size = "0x00000800"
 stack_base = "0x801FFFF0"
 
 # Digests are for data Track 01 (first BINARY FILE / TRACK 01).
+# Entry 2 is the USA disc with the copypaste-kyun UNDUB v1.0 xdelta applied.
+# Its executables are byte-identical to entry 1; only voice XA, END.STR and
+# ST/CHR2/M28.T differ.
 [prepare_disc]
 out_dir = "disc"
 bin_name = "Shadow Tower (USA).bin"
 cue_name = "Shadow Tower (USA).cue"
 boot_exe = "SLUS_008.63"
-known_sizes = [488105856]
+known_sizes = [488105856, 486012576]
 known_md5 = [
   "43a13b3c105761bd11d1b700f00e778d",
+  "6c7727f70564e4fd24d47ba17e6b4c8c",
 ]
 known_sha1 = [
   "df441bf08b7079f8b3d36f1188f7eedd8cb73c50",
+  "a917a3ef33e6a9e53fd11e7ffa2da9d993dcce2c",
 ]
 known_crc32 = [
   "6bc061de",
+  "e02cba24",
 ]
 
 [recompiler]

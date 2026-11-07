@@ -14,7 +14,8 @@ Mouse look, WASD, upscaled rendering, and sharper texture filtering.
 
 [gameplay demo](https://www.reddit.com/r/shadowtower/comments/1wkzy54/shadow_tower_native_psx_recomp_demo/).
 
-Requires your own **Shadow Tower (USA), SLUS-00863** BIN/CUE dump.
+Requires your own **Shadow Tower (USA), SLUS-00863** BIN/CUE dump. That dump with the
+[UNDUB v1.0 patch](https://archive.org/details/shadow_tower_undub_patch) applied is also accepted.
 No retail BIOS needed. OpenBIOS is included in the build.
 
 
