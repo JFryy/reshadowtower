@@ -1,0 +1,73 @@
+name: Feature request
+description: Propose an enhancement to the game port, launcher, or tooling.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests are most useful when they describe the problem first. Proposals that change original game behaviour should explain how the original remains available.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this has not been requested.
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Launcher
+        - Rendering and video
+        - Audio
+        - Input and controls
+        - Gameplay
+        - Platform support
+        - Build and tooling
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is missing or difficult today, and who does it affect?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the change and how it would behave.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How would we confirm the feature works?
+      placeholder: |
+        - The right stick controls camera yaw and pitch.
+        - The original digital controls are unchanged.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches, workarounds, or prior art in other ports.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Related issues, references, screenshots, or relevant code locations.
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you like to work on this?
+      options:
+        - "Yes"
+        - Possibly, with guidance
+        - "No"
+    validations:
+      required: true

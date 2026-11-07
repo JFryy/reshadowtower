@@ -1,0 +1,135 @@
+name: Bug report
+description: Report a crash, rendering or audio problem, gameplay bug, or setup failure.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem. Clear reproduction steps and logs make issues much faster to resolve.
+        See [CONTRIBUTING.md](https://github.com/JFryy/reshadowtower/blob/main/CONTRIBUTING.md#reporting-bugs) for where to find saves, settings, and logs.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this has not been reported.
+          required: true
+        - label: I am using the latest release or an up-to-date source checkout.
+          required: true
+        - label: This report does not include disc images, extracted game files, BIOS dumps, memory cards, or save states.
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Disc setup or installation
+        - Launcher
+        - Crash or freeze
+        - Rendering or video
+        - Audio
+        - Input or controls
+        - Gameplay
+        - Saves
+        - Building from source
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Start from launching the game. Include the in-game location if relevant.
+      placeholder: |
+        1. Load a save at the first headstone on floor 2.
+        2. Walk through the door to the east.
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      options:
+        - Every time
+        - Sometimes
+        - Happened once
+    validations:
+      required: true
+  - type: input
+    id: regression
+    attributes:
+      label: Last working version
+      description: If this worked in an earlier release or commit, name it. Leave blank if unknown.
+  - type: dropdown
+    id: build-type
+    attributes:
+      label: Build type
+      options:
+        - Linux AppImage
+        - Windows installer
+        - Source build (Linux)
+        - Source build (Windows, MSYS2)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release version, or the output of `git rev-parse --short HEAD` for source builds.
+      placeholder: 0.2.0
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: Include the version. For Windows builds, state whether you run native Windows or Wine (with its version).
+      placeholder: Arch Linux (kernel 6.12), Wayland
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and driver
+      placeholder: AMD Radeon RX 6700 XT, Mesa 25.0.1
+    validations:
+      required: true
+  - type: dropdown
+    id: disc
+    attributes:
+      label: Disc image
+      options:
+        - Shadow Tower (USA)
+        - Shadow Tower (USA) with UNDUB v1.0 patch
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Settings
+      description: For rendering or input problems, paste `settings.toml` and `input.ini`. Otherwise, list any non-default launcher settings.
+      render: toml
+  - type: input
+    id: saves
+    attributes:
+      label: Save location
+      description: Path to your saves directory, and whether the problem also occurs with a new save.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste the relevant output from `launcher.log`, `launcher-actions.log`, `launcher-process.log`, or the terminal.
+      render: text
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots or recordings
+      description: Attach images or video for visual and audio problems.

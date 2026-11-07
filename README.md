@@ -132,12 +132,12 @@ your OS, GPU, and the output of `git rev-parse --short HEAD`.
 
 ## Contributions
 
-Contributions are welcome, especially real Windows/MSYS2 testing, verified
-setup instructions for other Linux distributions, and gameplay fixes.
+Contributions are welcome. Please follow these guidelines; see
+[CONTRIBUTING.md](CONTRIBUTING.md) for build, test, and reporting details.
 
 - **Bug reports:** include your OS, GPU/driver, source revision
   (`git rev-parse --short HEAD`), reproduction steps, and relevant error output.
-  Say whether Windows results came from real Windows or Wine.
+  For Windows reports, state whether you tested on native Windows or Wine.
 - **Pull requests:** keep changes focused, explain what changed, and run the
   [development checks](#development-checks). Describe any manual gameplay tests
   and remaining validation gaps. Use disposable saves for testing.
