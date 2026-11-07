@@ -11,9 +11,13 @@ import socket
 import subprocess
 import sys
 import time
-from typing import Any
+from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_DISC = ROOT / "disc/Shadow Tower (USA).cue"
+# Called with (debug port, phase label) after each scenario, while that scenario's
+# executable is still resident. Its return value is stored on the phase record.
+Observer = Callable[[int, str], Any]
 
 
 def query(port: int, command: str, **arguments: Any) -> dict[str, Any]:
@@ -85,7 +89,9 @@ def press(port: int, button: int) -> None:
 
 
 def run_trial(out: Path, port: int, window: int, renderer: str, binary: Path,
-              trace_boot: bool) -> dict[str, Any]:
+              trace_boot: bool, disc: Path = DEFAULT_DISC,
+              observe: Observer | None = None,
+              env_overrides: dict[str, str] | None = None) -> dict[str, Any]:
     """Run one cold boot and a fixed sequence of first-room input scenarios."""
     out.mkdir(parents=True, exist_ok=False)
     # Prevent external diagnostic/performance overrides from contaminating a trial.
@@ -94,9 +100,10 @@ def run_trial(out: Path, port: int, window: int, renderer: str, binary: Path,
     if trace_boot:
         # Count generated boot-loader prologues only, not interpreted entries or BIOS.
         env["PSX_FN_FILTER"] = "0x80010000:0x80010800"
+    env.update(env_overrides or {})
     command = [str(binary),
                "--game", str(ROOT / "game.toml"),
-               "--disc", str(ROOT / "disc/Shadow Tower (USA).cue"),
+               "--disc", str(disc),
                "--no-launcher", "--renderer", renderer,
                "--debug-port", str(port), "--memcard-dir", str(out / "saves")]
     if renderer == "software":
@@ -128,10 +135,13 @@ def run_trial(out: Path, port: int, window: int, renderer: str, binary: Path,
                 time.sleep(window + 2)
                 after = snapshot(port, window)
                 query(port, "clear_input")
+                observation = observe(port, label) if observe else None
                 image = out / f"{label}.png"
                 query(port, "screenshot_file", path=str(image))
                 phase = {"label": label, "held_buttons": held, "before": before,
                          "after": after, "summary": summarize(before, after)}
+                if observation is not None:
+                    phase["observation"] = observation
                 record["phases"].append(phase)
                 (out / "results.json").write_text(json.dumps(record, indent=2) + "\n")
                 stats = after["phase_profile"]
