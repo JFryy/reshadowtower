@@ -90,7 +90,7 @@ def press(port: int, button: int) -> None:
 
 def run_trial(out: Path, port: int, window: int, renderer: str, binary: Path,
               trace_boot: bool, disc: Path = DEFAULT_DISC,
-              observe: Observer | None = None,
+              observe: Observer | None = None, game: Path = ROOT / "game.toml",
               env_overrides: dict[str, str] | None = None) -> dict[str, Any]:
     """Run one cold boot and a fixed sequence of first-room input scenarios."""
     out.mkdir(parents=True, exist_ok=False)
@@ -102,7 +102,7 @@ def run_trial(out: Path, port: int, window: int, renderer: str, binary: Path,
         env["PSX_FN_FILTER"] = "0x80010000:0x80010800"
     env.update(env_overrides or {})
     command = [str(binary),
-               "--game", str(ROOT / "game.toml"),
+               "--game", str(game),
                "--disc", str(disc),
                "--no-launcher", "--renderer", renderer,
                "--debug-port", str(port), "--memcard-dir", str(out / "saves")]

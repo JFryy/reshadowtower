@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Measure how much guest code runs in the interpreter.
+"""Measure how much guest code runs in the interpreter, and capture it.
 
-Boots a PSX_DEBUG_TOOLS runtime headless with runtime overlay compilation off,
-plays the fixed first-room scenarios from measure_execution.py, and reports the
-interpreter's share of wall time and every interpreted PC from the runtime's
-dirty_ram_stats table. With --strict, any interpreted guest instruction since
-boot fails the run.
+Boots a PSX_DEBUG_TOOLS runtime headless with the framework's overlay capture
+enabled, plays the fixed first-room scenarios from measure_execution.py, and
+reports the interpreter's share of wall time and every interpreted PC from the
+runtime's dirty_ram_stats table. With --strict, any interpreted guest
+instruction since boot fails the run. With --update-captures, the code captured
+in kernel RAM is merged into captures/overlay_captures.json with the framework's
+coverage_vault.py; generate_aot.py compiles it into the next build.
 """
 from __future__ import annotations
 
@@ -13,6 +15,8 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -20,21 +24,41 @@ from typing import Any, Callable, Iterable
 
 from dependencies import framework_root
 import measure_execution
+from generate_aot import RUNTIME_CAPTURES, address, load_capture_list
 
 ROOT = Path(__file__).resolve().parents[1]
-# Kernel RAM: OpenBIOS plus the stubs the game installs.
+# Kernel RAM: OpenBIOS plus the stubs the game installs. No disc file holds it.
 KERNEL_END = 0x10000
 SHARE_KEYS = ("interp", "static", "native", "gpu", "other")
 TOP_PCS = 20
 # handle_dirty_ram_stats (debug_server.c) stops adding per_pc rows once its
 # 64 KiB buffer is within 2 KiB of full. The fixed header is under 256 bytes.
 PER_PC_ROW_LIMIT = 64 * 1024 - 2048 - 256
+_PATH_VALUE = re.compile(r'^(\s*\w+\s*=\s*")([^"]+)(")', re.MULTILINE)
 
 Query = Callable[..., dict[str, Any]]
 
 
+def capture_config(source: Path, destination: Path) -> Path:
+    """Write a copy of game.toml with overlay capture on and absolute paths."""
+    def absolute(match: re.Match[str]) -> str:
+        candidate = source.parent / match.group(2)
+        if "/" not in match.group(2) or not candidate.exists():
+            return match.group(0)
+        return match.group(1) + candidate.resolve().as_posix() + match.group(3)
+
+    text = _PATH_VALUE.sub(absolute, source.read_text(encoding="utf-8"))
+    text, count = re.subn(r"^\[runtime\]\n", "[runtime]\noverlay_cache = true\n",
+                          text, count=1, flags=re.MULTILINE)
+    if count != 1:
+        raise ValueError(f"{source} has no [runtime] table")
+    destination.write_text(text, encoding="utf-8")
+    return destination
+
+
 class Collector:
-    """After each scenario, keep the cumulative dirty_ram_stats rows."""
+    """After each scenario, keep the cumulative dirty_ram_stats rows and
+    flush the runtime's overlay capture file."""
 
     def __init__(self, query: Query):
         self.query = query
@@ -50,7 +74,8 @@ class Collector:
         self.truncated |= per_pc_bytes(rows) >= PER_PC_ROW_LIMIT
         for row in rows:
             self.rows[int(row["pc"], 16)] = row  # Counters are cumulative since boot.
-        return {"interpreted_pcs": len(rows)}
+        dump = self.query(port, "overlay_capture_dump")
+        return {"interpreted_pcs": len(rows), "capture_entries": dump["capture_entries"]}
 
 
 def per_pc_bytes(rows: list[dict[str, Any]]) -> int:
@@ -93,6 +118,35 @@ def region_totals(records: list[dict[str, Any]]) -> dict[str, int]:
     for record in records:
         totals[record["region"]] += record["insns"]
     return totals
+
+
+def kernel_captures(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [c for c in captures
+            if (address(c["load_addr"]) & 0x1FFFFFFF) + c["size"] <= KERNEL_END]
+
+
+def update_captures(run_captures: list[Path], committed: Path, work: Path) -> str:
+    """Union kernel captures from the runs into the committed capture file."""
+    use_framework_tools()
+    import coverage_vault
+
+    vault = work / coverage_vault.CAP_NAME
+    work.mkdir(parents=True, exist_ok=True)
+    if committed.is_file():
+        shutil.copyfile(committed, vault)
+    variants = pcs = 0
+    for path in run_captures:
+        if path.is_file():
+            added = coverage_vault.merge_capture_regions(
+                str(vault), kernel_captures(load_capture_list(path)))
+            variants += added[0]
+            pcs += added[1]
+    if not vault.is_file():
+        return "no captures recorded"
+    records = sorted(load_capture_list(vault), key=lambda c: (c["load_addr"], c["bytes_b64"]))
+    committed.parent.mkdir(parents=True, exist_ok=True)
+    committed.write_text(json.dumps(records, indent=1) + "\n", encoding="utf-8")
+    return f"+{variants} variant(s), +{pcs} executed PC(s) -> {committed}"
 
 
 def use_framework_tools() -> None:
@@ -143,6 +197,8 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines += ["| PC | Region | Instructions |", "| --- | --- | --- |"]
         lines += [f"| {r['pc']} | {r['region']} | {r['insns']} |" for r in hottest]
         lines.append("")
+    if report.get("captures"):
+        lines += [f"Captures: {report['captures']}", ""]
     lines += ["## Result", ""]
     lines += [f"- FAIL: {f}" for f in report["gate_failures"]] or ["PASS"]
     return "\n".join(lines) + "\n"
@@ -178,6 +234,8 @@ def main() -> int:
                         help="Fail if any scenario exceeds this interpreter share")
     parser.add_argument("--strict", action="store_true",
                         help="Fail on any interpreted guest instruction since boot")
+    parser.add_argument("--update-captures", action="store_true",
+                        help=f"Merge captured kernel code into {RUNTIME_CAPTURES.relative_to(ROOT)}")
     args = parser.parse_args()
     if args.runs < 1 or not 1 <= args.window <= 60 or not 0 < args.max_interp_share <= 1:
         parser.error("runs must be positive, window 1-60, max-interp-share in (0, 1]")
@@ -192,20 +250,25 @@ def main() -> int:
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     binary = args.binary.resolve()
-    runs, rows, truncated, insns_run = [], [], False, 0
+    game = capture_config(ROOT / "game.toml", out / "game.toml")
+    runs, rows, captures, truncated, insns_run = [], [], [], False, 0
     for index in range(args.runs):
         run_dir = out / f"run-{index + 1}"
+        captured = run_dir / "overlay_captures.json"
         collector = Collector(measure_execution.query)
         runs.append(measure_execution.run_trial(
             run_dir, args.port, args.window, "software", binary, False,
-            args.disc.resolve(), collector,
-            env_overrides={"PSX_OVERLAY_AUTOCOMPILE_OFF": "1"}))
+            args.disc.resolve(), collector, game,
+            {"PSX_OVERLAY_CAPTURES": str(captured), "PSX_OVERLAY_AUTOCOMPILE_OFF": "1"}))
         rows.append(collector.rows)
+        captures.append(captured)
         truncated |= collector.truncated
         insns_run += collector.insns_run
 
     report = build_report(runs, rows, truncated, args.max_interp_share, insns_run,
                           strict=args.strict)
+    if args.update_captures:
+        report["captures"] = update_captures(captures, RUNTIME_CAPTURES, out / "vault")
     report["metadata"] = {
         "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"],
                                               cwd=ROOT, text=True).strip(),
