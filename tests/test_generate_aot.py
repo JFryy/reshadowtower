@@ -1,4 +1,6 @@
+import base64
 import io
+import json
 import os
 from pathlib import Path
 import sys
@@ -49,6 +51,8 @@ class CodegenHashOrderTests(unittest.TestCase):
             output = root / "aot"
             output.mkdir()
             (output / "disc-captures.json").write_text("[]")
+            runtime = root / "runtime.json"
+            runtime.write_text(json.dumps([capture(0x80002000)]))
             framework = root / "framework"
             emitter = root / "psxrecomp-game"
 
@@ -62,7 +66,10 @@ class CodegenHashOrderTests(unittest.TestCase):
                  mock.patch.object(generate_aot, "find_recompiler", return_value=emitter), \
                  mock.patch.object(generate_aot.subprocess, "run", side_effect=complete) as run, \
                  mock.patch.object(sys, "stdout", new_callable=io.StringIO):
-                self.assertEqual(generate_aot.run(SimpleNamespace(out_dir=output, jobs=1)), 0)
+                self.assertEqual(generate_aot.run(SimpleNamespace(
+                    out_dir=output, jobs=1, runtime_captures=runtime)), 0)
+            compiled = json.loads((output / "filtered-captures.json").read_text())
+            self.assertEqual([c["load_addr"] for c in compiled], ["0x80002000"])
             self.assertEqual(run.call_args_list[0].args[0], [
                 "cmake", f"-DPSXRECOMP_ROOT={framework}",
                 "-P", str(root / "cmake/generate_codegen_hash.cmake"),
@@ -70,6 +77,11 @@ class CodegenHashOrderTests(unittest.TestCase):
             self.assertTrue(run.call_args_list[0].kwargs["check"])
             self.assertTrue(run.call_args_list[1].args[0][1].endswith("extract_generic.py"))
             self.assertTrue(run.call_args_list[2].args[0][1].endswith("compile_overlays.py"))
+
+
+def capture(load_addr):
+    return {"load_addr": f"0x{load_addr:08X}",
+            "bytes_b64": base64.b64encode(bytes(16)).decode()}
 
 
 if __name__ == "__main__":

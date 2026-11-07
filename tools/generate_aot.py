@@ -17,6 +17,9 @@ from typing import Any
 from dependencies import framework_root
 
 ROOT = Path(__file__).resolve().parents[1]
+# Kernel RAM code (OpenBIOS plus game-installed stubs) that no disc file holds,
+# recorded by tools/coverage_report.py --update-captures.
+RUNTIME_CAPTURES = ROOT / "captures/overlay_captures.json"
 _SANITIZE = (
     "PSX_OVERLAY_CACHE_DIR",
     "PSX_OVERLAY_CAPTURES",
@@ -112,6 +115,16 @@ def filter_false_roots(captures: list[dict[str, Any]]) -> int:
     return excluded
 
 
+def load_capture_list(path: Path) -> list[dict[str, Any]]:
+    with path.open(encoding="utf-8") as source:
+        captures = json.load(source)
+    if not isinstance(captures, list) or not all(
+        isinstance(capture, dict) for capture in captures
+    ):
+        raise ValueError(f"{path} is not a capture list")
+    return captures
+
+
 def run(args: argparse.Namespace) -> int:
     out_dir: Path = args.out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -138,12 +151,11 @@ def run(args: argparse.Namespace) -> int:
     ]
     subprocess.run(extract_command, check=True, env=env)
 
-    with captures_path.open(encoding="utf-8") as source:
-        captures = json.load(source)
-    if not isinstance(captures, list) or not all(
-        isinstance(capture, dict) for capture in captures
-    ):
-        raise ValueError(f"{captures_path} is not a capture list")
+    captures = load_capture_list(captures_path)
+    if args.runtime_captures.is_file():
+        runtime = load_capture_list(args.runtime_captures)
+        captures.extend(runtime)
+        print(f"Runtime captures: {len(runtime)} from {args.runtime_captures}")
     exclusions = filter_false_roots(captures)
     with filtered_path.open("w", encoding="utf-8") as destination:
         json.dump(captures, destination, indent=2)
@@ -193,6 +205,10 @@ def main() -> int:
         help="output directory (default: %(default)s)",
     )
     parser.add_argument("--jobs", type=positive_int, default=4)
+    parser.add_argument(
+        "--runtime-captures", type=Path, default=RUNTIME_CAPTURES,
+        help="runtime overlay captures to compile, if present (default: %(default)s)",
+    )
     args = parser.parse_args()
     try:
         return run(args)

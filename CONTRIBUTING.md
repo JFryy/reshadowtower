@@ -12,6 +12,9 @@ link to:
 - Disc images (BIN/CUE, ISO, CHD) or files extracted from them, including
   `SLUS_008.63` and other executables.
 - Generated game code (`generated/`) or build output (`build-*/`, `out/`, `dist/`).
+  The one exception is `captures/overlay_captures.json`: kernel RAM code
+  recorded by `tools/coverage_report.py --update-captures`, which no disc
+  file contains.
 - BIOS dumps. The build uses the bundled OpenBIOS; no retail BIOS is needed.
 - Memory cards (`.mcd`, `.mcr`) or save states.
 
