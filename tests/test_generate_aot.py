@@ -3,6 +3,7 @@ import io
 import json
 import os
 from pathlib import Path
+import struct
 import sys
 import tempfile
 import unittest
@@ -51,6 +52,7 @@ class CodegenHashOrderTests(unittest.TestCase):
             output = root / "aot"
             output.mkdir()
             (output / "disc-captures.json").write_text("[]")
+            (root / "game.toml").write_text('[game]\ndisc = "disc/game.cue"\n')
             runtime = root / "runtime.json"
             runtime.write_text(json.dumps([capture(0x80002000)]))
             framework = root / "framework"
@@ -64,12 +66,15 @@ class CodegenHashOrderTests(unittest.TestCase):
             with mock.patch.object(generate_aot, "ROOT", root), \
                  mock.patch.object(generate_aot, "framework_root", return_value=framework), \
                  mock.patch.object(generate_aot, "find_recompiler", return_value=emitter), \
+                 mock.patch.object(generate_aot, "area_module_records",
+                                   return_value=[capture(0x801EB000)]) as areas, \
                  mock.patch.object(generate_aot.subprocess, "run", side_effect=complete) as run, \
                  mock.patch.object(sys, "stdout", new_callable=io.StringIO):
                 self.assertEqual(generate_aot.run(SimpleNamespace(
                     out_dir=output, jobs=1, runtime_captures=runtime)), 0)
+            self.assertEqual(areas.call_args.args, (framework, root / "disc/game.cue"))
             compiled = json.loads((output / "filtered-captures.json").read_text())
-            self.assertEqual([c["load_addr"] for c in compiled], ["0x80002000"])
+            self.assertEqual([c["load_addr"] for c in compiled], ["0x801EB000", "0x80002000"])
             self.assertEqual(run.call_args_list[0].args[0], [
                 "cmake", f"-DPSXRECOMP_ROOT={framework}",
                 "-P", str(root / "cmake/generate_codegen_hash.cmake"),
@@ -82,6 +87,25 @@ class CodegenHashOrderTests(unittest.TestCase):
 def capture(load_addr):
     return {"load_addr": f"0x{load_addr:08X}",
             "bytes_b64": base64.b64encode(bytes(16)).decode()}
+
+
+class AreaCodeBlockTests(unittest.TestCase):
+    def test_blocks_run_from_code_sector_to_next_data_sector(self):
+        sector = generate_aot.SECTOR
+        table = struct.pack("<4I", 0x00010009, (3 << 16) | 1, (6 << 16) | 4, 0)
+        archive = bytearray(9 * sector)
+        archive[:len(table)] = table
+        for index in range(9):
+            archive[index * sector] = archive[index * sector] or index
+        blocks = generate_aot.area_code_blocks(bytes(archive))
+        self.assertEqual([len(b) // sector for b in blocks], [1, 3])
+        self.assertEqual(blocks[0], bytes(archive[3 * sector:4 * sector]))
+        self.assertEqual(blocks[1], bytes(archive[6 * sector:9 * sector]))
+
+    def test_out_of_range_entries_are_ignored(self):
+        table = struct.pack("<3I", 1, (40 << 16) | 1, 0)
+        archive = table + bytes(generate_aot.SECTOR * 2 - len(table))
+        self.assertEqual(generate_aot.area_code_blocks(archive), [])
 
 
 if __name__ == "__main__":
