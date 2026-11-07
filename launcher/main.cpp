@@ -493,7 +493,10 @@ int main(int argc, char** argv) {
             ImGui::EndDisabled();
         } else {
             ImGui::TextUnformatted("Disc setup");
-            hint("Use your Shadow Tower (USA) disc image. Verification and installation run locally, without downloads.");
+            hint("Use your Shadow Tower disc image. Verification and installation run locally, without downloads.");
+            hint("Accepted images:");
+            hint("  - Shadow Tower (USA), SLUS-00863");
+            hint("  - Shadow Tower (USA) with the UNDUB v1.0 patch applied");
             ImGui::Spacing();
             ImGui::TextUnformatted("Disc image");
             ImGui::SetNextItemWidth(-120 * uiScale);
