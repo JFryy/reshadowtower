@@ -35,6 +35,20 @@ class LauncherBackendTests(unittest.TestCase):
             self.assertEqual(call.kwargs["cwd"], self.root)
             self.assertNotIn("shell", call.kwargs)
 
+    def test_setup_prints_stage_markers_the_launcher_parses(self):
+        # launcher::setupStage in launcher/model.hpp parses this format; model_tests.cpp covers that side.
+        with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=0)), \
+             mock.patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
+            backend.setup(self.root, self.disc)
+        markers = [line for line in stdout.getvalue().splitlines() if line.startswith("[setup ")]
+        self.assertEqual(markers, ["[setup 1/3] Verifying the disc", "[setup 2/3] Generating game code",
+                                   "[setup 3/3] Building the game"])
+        self.source_checkout()
+        with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=0)), \
+             mock.patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
+            backend.setup(self.root, self.disc)
+        self.assertIn("[setup 1/1] Building the game from source", stdout.getvalue().splitlines())
+
     def test_verification_failure_does_not_generate_or_build(self):
         with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=2)) as run, \
              mock.patch.object(sys, "stdout", new_callable=io.StringIO):

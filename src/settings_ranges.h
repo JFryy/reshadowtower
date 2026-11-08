@@ -1,0 +1,40 @@
+#pragma once
+
+/* Ranges and defaults for player settings, shared by the launcher (C++) and the
+ * runtime (C) so the two cannot disagree. Post-processing bounds are float
+ * literals because those settings are stored as float; comparing a float such
+ * as .2f against the double 0.2 would wrongly reject the slider maximum. */
+
+#define SHADOWTOWER_VOLUME_MIN 0
+#define SHADOWTOWER_VOLUME_MAX 100
+#define SHADOWTOWER_VOLUME_DEFAULT 100
+
+#define SHADOWTOWER_MOUSE_SENSITIVITY_MIN 0.05
+#define SHADOWTOWER_MOUSE_SENSITIVITY_MAX 10.0
+#define SHADOWTOWER_MOUSE_SENSITIVITY_DEFAULT 1.0
+
+#define SHADOWTOWER_STICK_SENSITIVITY_MIN 0.1
+#define SHADOWTOWER_STICK_SENSITIVITY_MAX 5.0
+#define SHADOWTOWER_STICK_SENSITIVITY_DEFAULT 1.0
+
+/* Fraction of full stick deflection. */
+#define SHADOWTOWER_STICK_DEADZONE_MIN 0.0
+#define SHADOWTOWER_STICK_DEADZONE_MAX 0.9
+#define SHADOWTOWER_STICK_DEADZONE_DEFAULT 0.15
+
+#define SHADOWTOWER_POSTFX_EXPOSURE_MIN -2.f
+#define SHADOWTOWER_POSTFX_EXPOSURE_MAX 2.f
+#define SHADOWTOWER_POSTFX_EXPOSURE_DEFAULT 0.f
+#define SHADOWTOWER_POSTFX_CONTRAST_MIN .5f
+#define SHADOWTOWER_POSTFX_CONTRAST_MAX 1.5f
+#define SHADOWTOWER_POSTFX_CONTRAST_DEFAULT 1.f
+#define SHADOWTOWER_POSTFX_SATURATION_MIN 0.f
+#define SHADOWTOWER_POSTFX_SATURATION_MAX 2.f
+#define SHADOWTOWER_POSTFX_SATURATION_DEFAULT 1.f
+#define SHADOWTOWER_POSTFX_GRAIN_MIN 0.f
+#define SHADOWTOWER_POSTFX_GRAIN_MAX .2f
+#define SHADOWTOWER_POSTFX_CURVATURE_MIN 0.f
+#define SHADOWTOWER_POSTFX_CURVATURE_MAX .2f
+/* Dither, bloom, scanlines, mask, sharpen and FXAA strength. */
+#define SHADOWTOWER_POSTFX_UNIT_MIN 0.f
+#define SHADOWTOWER_POSTFX_UNIT_MAX 1.f

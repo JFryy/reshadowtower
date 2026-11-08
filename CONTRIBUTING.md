@@ -85,9 +85,15 @@ On Linux, `$XDG_DATA_HOME` replaces `~/.local/share` when set.
 - Run `python3 tools/run_tests.py` before opening the pull request. CI also
   builds and tests pull requests on Linux and Windows.
 - Match the style of the surrounding code.
-- Keep PSXRecomp framework fixes separate from title-specific code. Submit shared
-  fixes upstream and update the verified pins in `cmake/dependencies.json`; do not
-  rely on changes that exist only in a local `PSXRECOMP_ROOT` override.
+- Keep PSXRecomp framework changes separate from title-specific code. Framework
+  changes are carried as patches in `patches/*.patch`, applied at build time by
+  `tools/prepare_source.py` to the revision pinned in `cmake/dependencies.json`
+  (sha256-checked, exact context, no fuzz) and wired in through `cmake/*.cmake`
+  (see `shadowtower_prepare` in `cmake/adapters.cmake`). When bumping a pin,
+  regenerate the affected patches (the `# source-sha256:` line and hunks) and run
+  `tests/test_source_adapters.py`. Do not rely on changes that exist only in a
+  local `PSXRECOMP_ROOT` override.
+- For how the pieces fit together, see [docs/architecture.md](docs/architecture.md).
 
 ## License
 

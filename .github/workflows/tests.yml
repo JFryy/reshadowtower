@@ -2,6 +2,8 @@ name: Asset-free tests
 
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -14,15 +16,15 @@ concurrency:
 jobs:
   tests:
     runs-on: ubuntu-24.04
-    container: archlinux:base-devel
+    container: archlinux:base-devel-20261101.0.620205@sha256:2de80105abb49f813a85393c6758a4334deb6bcec4a2411bd2f059c0bee6ee4c
     timeout-minutes: 20
     steps:
       - name: Install build and graphics test dependencies
         run: |
           pacman -Syu --noconfirm --needed \
             git cmake ninja gcc python python-opengl sdl3 mesa \
-            xorg-server-xvfb xorg-xauth
-      - uses: actions/checkout@v4
+            xorg-server-xvfb xorg-xauth glslang
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
       - name: Resolve pinned framework dependencies

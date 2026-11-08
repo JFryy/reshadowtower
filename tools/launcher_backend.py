@@ -11,6 +11,11 @@ import sys
 from release_common import file_hash
 
 
+def stage_marker(step: int, total: int, label: str) -> str:
+    """Format a progress line the launcher parses (launcher::setupStage in launcher/model.hpp)."""
+    return f"[setup {step}/{total}] {label}"
+
+
 def setup_source(workspace: Path, disc: Path, bios: Path | None) -> None:
     """Build a source checkout with local tools and record its playable binary."""
     ready = workspace / ".build-ready"
@@ -19,7 +24,7 @@ def setup_source(workspace: Path, disc: Path, bios: Path | None) -> None:
     if bios is not None:
         command.append(str(bios))
     log_path = workspace / "launcher-actions.log"
-    print("Building the game from source...", flush=True)
+    print(stage_marker(1, 1, "Building the game from source"), flush=True)
     with log_path.open("a", encoding="utf-8", buffering=1) as log:
         log.write("\nSource setup: verify disc, generate code, and build game\n")
         result = subprocess.run(command, cwd=workspace, stdout=log, stderr=subprocess.STDOUT)
@@ -64,8 +69,8 @@ def setup(workspace: Path, disc: Path, bios: Path | None = None) -> None:
     ]
     log_path = workspace / "launcher-actions.log"
     with log_path.open("a", encoding="utf-8", buffering=1) as log:
-        for label, arguments in commands:
-            print(label + "...", flush=True)
+        for step, (label, arguments) in enumerate(commands, 1):
+            print(stage_marker(step, len(commands), label), flush=True)
             log.write("\n" + label + "\n")
             result = subprocess.run([sys.executable, str(cli), *arguments], cwd=workspace,
                                     stdout=log, stderr=subprocess.STDOUT)

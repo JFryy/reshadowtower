@@ -229,6 +229,35 @@ int main() {
             ++asideCount;
         }
         require(asideCount == 1);
+        launcher::Settings outOfRange;
+        outOfRange.volume = 150;
+        std::string rejection;
+        try { launcher::save(root, outOfRange); } catch (const std::invalid_argument& e) { rejection = e.what(); }
+        require(rejection == "Cannot save settings: Volume is 150; allowed range is 0 to 100.");
+        outOfRange = launcher::Settings{};
+        outOfRange.postFx.grain = .5f;
+        require(launcher::invalidSetting(outOfRange).rfind("Film grain is 0.5;", 0) == 0);
+        outOfRange = launcher::Settings{};
+        outOfRange.stickDeadzone = 0.95;
+        require(launcher::invalidSetting(outOfRange) == "Stick deadzone is 0.95; allowed range is 0 to 0.9");
+        outOfRange = launcher::Settings{};
+        outOfRange.postFx.curvature = launcher::postFxField("curvature").range.high;
+        require(launcher::invalidSetting(outOfRange).empty());
+        require(launcher::setupStage("[setup 2/3] Generating game code") == "2 / 3  Generating game code");
+        require(launcher::setupStage("[setup 1/1] Building the game from source\r") == "1 / 1  Building the game from source");
+        require(launcher::setupStage("Building the game...").empty() && launcher::setupStage("[setup x/3] Bad").empty() &&
+                launcher::setupStage("[setup 1/] Bad").empty() && launcher::setupStage("[setup 1/2] ").empty());
+        for (const auto preset : {launcher::PostFxPreset::original, launcher::PostFxPreset::subtle, launcher::PostFxPreset::crt}) {
+            launcher::PostFx fx;
+            fx.sharpen = .5f;
+            launcher::applyPostFxPreset(fx, preset);
+            require(launcher::postFxPreset(fx) == preset);
+        }
+        for (const auto& values : launcher::graphicsPresets) {
+            launcher::Settings graphics;
+            launcher::applyGraphicsPreset(graphics, values.preset);
+            require(launcher::graphicsPreset(graphics) == values.preset && graphics.scale == values.scale);
+        }
         require(launcher::load(root).mouseSensitivity == 1.0);
         require(launcher::setAsideCorruptSettings(root).empty());
         launcher::save(root, launcher::Settings{});

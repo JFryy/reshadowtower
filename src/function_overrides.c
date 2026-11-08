@@ -15,6 +15,12 @@
 /* Frames below the entry $sp are dead after return and hold generated-code spills. */
 #define DEAD_STACK_BYTES 0x10000u
 #define MAX_REPORTED_DIFFS 8
+/* Strips the KSEG0/KSEG1 segment bits, leaving the physical address. */
+#define PHYSICAL_ADDRESS_MASK 0x1FFFFFFFu
+/* RAM is mirrored across the first 8 MiB of the physical address space. */
+#define RAM_MIRROR_END 0x00800000u
+/* Argument home slots above $sp that a callee may spill into. */
+#define ARG_HOME_BYTES 16u
 
 extern uint8_t *memory_get_ram_ptr(void);
 extern uint8_t *memory_get_scratchpad_ptr(void);
@@ -54,7 +60,7 @@ static int fingerprint_resident(const Override *item) {
 
 static const Override *resident_override(uint32_t address) {
     for (size_t i = 0; i < override_count; ++i)
-        if (((overrides[i].address ^ address) & 0x1FFFFFFFu) == 0 &&
+        if (((overrides[i].address ^ address) & PHYSICAL_ADDRESS_MASK) == 0 &&
             fingerprint_resident(&overrides[i]))
             return &overrides[i];
     return NULL;
@@ -72,13 +78,13 @@ static void restore(const Snapshot *snapshot, CPUState *cpu) {
     memcpy(memory_get_scratchpad_ptr(), snapshot->scratchpad, SCRATCHPAD_BYTES);
 }
 
-/* Offsets of the callee-owned stack, [sp - DEAD_STACK_BYTES, sp + 16), within one memory.
- * The 16 bytes above sp are the argument home slots the callee may spill into. */
+/* Offsets of the callee-owned stack, [sp - DEAD_STACK_BYTES, sp + ARG_HOME_BYTES), within one memory.
+ * The bytes above sp are the argument home slots. */
 static void dead_stack(uint32_t sp, uint32_t base, uint32_t size, uint32_t *low, uint32_t *high) {
     *low = *high = 0;
-    const uint32_t physical = sp & 0x1FFFFFFFu;
+    const uint32_t physical = sp & PHYSICAL_ADDRESS_MASK;
     uint32_t top;
-    if (base == 0 && physical < 0x00800000u) { /* RAM and its mirrors */
+    if (base == 0 && physical < RAM_MIRROR_END) { /* RAM and its mirrors */
         top = physical & (RAM_BYTES - 1);
         if (!top && physical) top = RAM_BYTES;
     } else if (base != 0 && physical >= base && physical <= base + size) {
@@ -87,7 +93,7 @@ static void dead_stack(uint32_t sp, uint32_t base, uint32_t size, uint32_t *low,
         return;
     }
     *low = top > DEAD_STACK_BYTES ? top - DEAD_STACK_BYTES : 0;
-    *high = top + 16 < size ? top + 16 : size;
+    *high = top + ARG_HOME_BYTES < size ? top + ARG_HOME_BYTES : size;
 }
 
 static int compare_memory(const char *name, uint32_t guest_base,
@@ -247,11 +253,38 @@ static void configure_check(void) {
 int shadowtower_register_override(const char *id, uint32_t address,
                                   const ShadowTowerCodeWord *fingerprint,
                                   size_t fingerprint_count, ShadowTowerOverrideFn fn) {
-    if (!id || !*id || !address || !fn || !fingerprint || !fingerprint_count ||
-        fingerprint_count > MAX_FINGERPRINT || override_count == MAX_OVERRIDES)
+    const char *name = id ? id : "(null)";
+    if (!id || !*id) {
+        fprintf(stderr, "Shadow Tower: cannot register override '%s': missing id.\n", name);
         return 0;
+    }
+    if (!address) {
+        fprintf(stderr, "Shadow Tower: cannot register override '%s': address 0.\n", name);
+        return 0;
+    }
+    if (!fn) {
+        fprintf(stderr, "Shadow Tower: cannot register override '%s': missing function.\n", name);
+        return 0;
+    }
+    if (!fingerprint || !fingerprint_count) {
+        fprintf(stderr, "Shadow Tower: cannot register override '%s': missing fingerprint.\n", name);
+        return 0;
+    }
+    if (fingerprint_count > MAX_FINGERPRINT) {
+        fprintf(stderr, "Shadow Tower: cannot register override '%s': fingerprint has %zu words "
+                "(max %d).\n", name, fingerprint_count, MAX_FINGERPRINT);
+        return 0;
+    }
+    if (override_count == MAX_OVERRIDES) {
+        fprintf(stderr, "Shadow Tower: cannot register override '%s': registry full "
+                "(%d overrides).\n", name, MAX_OVERRIDES);
+        return 0;
+    }
     for (size_t i = 0; i < override_count; ++i)
-        if (!strcmp(overrides[i].id, id)) return 0;
+        if (!strcmp(overrides[i].id, id)) {
+            fprintf(stderr, "Shadow Tower: cannot register override '%s': duplicate id.\n", name);
+            return 0;
+        }
     configure_check();
 
     Override *item = &overrides[override_count++];

@@ -2,6 +2,7 @@
 #include "modern_controls.h"
 #include "mod_plugins.h"
 #include "psx_keybinds.h"
+#include "settings_ranges.h"
 
 #include <errno.h>
 #include <math.h>
@@ -21,20 +22,54 @@
 #define STICK_RATE 2048.0f /* PS1 angle units per second at full deflection */
 #define STICK_MAX_STEP_MS 50
 
-static float mouse_sensitivity = 1.0f; /* PS1 angle units per relative mouse count */
+static float mouse_sensitivity = (float)SHADOWTOWER_MOUSE_SENSITIVITY_DEFAULT; /* PS1 angle units per relative mouse count */
 static float pending_x, pending_y;
-static float stick_sensitivity = 1.0f; /* multiplier on STICK_RATE */
-static float stick_deadzone = 0.15f; /* fraction of full deflection */
+static float stick_sensitivity = (float)SHADOWTOWER_STICK_SENSITIVITY_DEFAULT; /* multiplier on STICK_RATE */
+static float stick_deadzone = (float)SHADOWTOWER_STICK_DEADZONE_DEFAULT; /* fraction of full deflection */
 static Uint64 last_look, last_sample, last_stick;
 static SDL_Window *captured_window;
 static int mouse_was_down, suppress_click;
 
+/* Active-low PSX pad bits: a pressed button clears its bit. */
+#define PAD_NONE_PRESSED 0xFFFFu
+#define PAD_SELECT 0x0001u
+#define PAD_UP 0x0010u
+#define PAD_RIGHT 0x0020u
+#define PAD_DOWN 0x0040u
+#define PAD_LEFT 0x0080u
+#define PAD_L1 0x0400u
+#define PAD_R1 0x0800u
+#define PAD_TRIANGLE 0x1000u
+#define PAD_CIRCLE 0x2000u
+#define PAD_CROSS 0x4000u
+#define PAD_SQUARE 0x8000u
+
+typedef struct CodeWord {
+    uint32_t address, expected;
+} CodeWord;
+
+static const CodeWord gameplay_fingerprint[] = {
+    {LOOK_UPDATE, 0x27BDFFE8u},     /* addiu sp,sp,-24 */
+    {LOOK_UPDATE + 4, 0x3C02801Du}, /* lui v0,0x801D */
+    {0x80041EA4u, 0xA4C3027Au},     /* sh v1,0x27A(a2) */
+    {0x80042088u, 0xA6020278u},     /* sh v0,0x278(s0) */
+};
+
 /* Refuse camera writes when another disc executable occupies these addresses. */
 static int gameplay_image_loaded(void) {
-    return psx_mod_read_word(LOOK_UPDATE) == 0x27BDFFE8u &&
-           psx_mod_read_word(LOOK_UPDATE + 4) == 0x3C02801Du &&
-           psx_mod_read_word(0x80041EA4u) == 0xA4C3027Au &&
-           psx_mod_read_word(0x80042088u) == 0xA6020278u;
+    static int reported;
+    for (size_t i = 0; i < sizeof gameplay_fingerprint / sizeof gameplay_fingerprint[0]; ++i) {
+        const uint32_t found = psx_mod_read_word(gameplay_fingerprint[i].address);
+        if (found == gameplay_fingerprint[i].expected) continue;
+        if (!reported) {
+            reported = 1;
+            fprintf(stderr, "Shadow Tower: gameplay code at 0x%08X does not match "
+                    "(found 0x%08X, expected 0x%08X); camera look paused while it differs.\n",
+                    gameplay_fingerprint[i].address, found, gameplay_fingerprint[i].expected);
+        }
+        return 0;
+    }
+    return 1;
 }
 
 static void release_mouse(void) {
@@ -181,7 +216,7 @@ uint16_t shadowtower_pad_word(const uint8_t *keys, int player) {
         pending_x = pending_y = 0;
     }
 
-    if (!focus) return 0xFFFF;
+    if (!focus) return PAD_NONE_PRESSED;
     uint8_t original_keys[SDL_NUM_SCANCODES];
     memcpy(original_keys, keys, sizeof original_keys);
     const SDL_Scancode remapped[] = {
@@ -192,20 +227,20 @@ uint16_t shadowtower_pad_word(const uint8_t *keys, int player) {
     for (size_t i = 0; i < sizeof remapped / sizeof remapped[0]; ++i)
         original_keys[remapped[i]] = 0;
     uint16_t buttons = psx_keybinds_pad_word(original_keys, player);
-    if (keys[SDL_SCANCODE_W]) buttons &= (uint16_t)~0x0010u;
-    if (keys[SDL_SCANCODE_S]) buttons &= (uint16_t)~0x0040u;
-    if (keys[SDL_SCANCODE_A]) buttons &= (uint16_t)~(gameplay ? 0x0400u : 0x0080u);
-    if (keys[SDL_SCANCODE_D]) buttons &= (uint16_t)~(gameplay ? 0x0800u : 0x0020u);
-    if (keys[SDL_SCANCODE_E]) buttons &= (uint16_t)~0x4000u;
-    if (keys[SDL_SCANCODE_F]) buttons &= (uint16_t)~0x1000u;
+    if (keys[SDL_SCANCODE_W]) buttons &= (uint16_t)~PAD_UP;
+    if (keys[SDL_SCANCODE_S]) buttons &= (uint16_t)~PAD_DOWN;
+    if (keys[SDL_SCANCODE_A]) buttons &= (uint16_t)~(gameplay ? PAD_L1 : PAD_LEFT);
+    if (keys[SDL_SCANCODE_D]) buttons &= (uint16_t)~(gameplay ? PAD_R1 : PAD_RIGHT);
+    if (keys[SDL_SCANCODE_E]) buttons &= (uint16_t)~PAD_CROSS;
+    if (keys[SDL_SCANCODE_F]) buttons &= (uint16_t)~PAD_TRIANGLE;
     if (keys[SDL_SCANCODE_C] || (!gameplay && keys[SDL_SCANCODE_ESCAPE]))
-        buttons &= (uint16_t)~0x2000u;
-    if (keys[SDL_SCANCODE_TAB]) buttons &= (uint16_t)~0x0001u;
+        buttons &= (uint16_t)~PAD_CIRCLE;
+    if (keys[SDL_SCANCODE_TAB]) buttons &= (uint16_t)~PAD_SELECT;
     if (captured_window && gameplay && mouse_down && !suppress_click)
-        buttons &= (uint16_t)~0x1000u;
+        buttons &= (uint16_t)~PAD_TRIANGLE;
     if (captured_window && gameplay && !just_captured &&
         (mouse_buttons & SDL_BUTTON_RMASK))
-        buttons &= (uint16_t)~0x8000u;
+        buttons &= (uint16_t)~PAD_SQUARE;
     return buttons;
 }
 
@@ -225,9 +260,12 @@ static void read_setting(const char *name, float min, float max, float *target) 
 }
 
 static void configure_look(void) {
-    read_setting("SHADOWTOWER_MOUSE_SENSITIVITY", 0.05f, 10.0f, &mouse_sensitivity);
-    read_setting("SHADOWTOWER_STICK_SENSITIVITY", 0.1f, 5.0f, &stick_sensitivity);
-    read_setting("SHADOWTOWER_STICK_DEADZONE", 0.0f, 0.9f, &stick_deadzone);
+    read_setting("SHADOWTOWER_MOUSE_SENSITIVITY", (float)SHADOWTOWER_MOUSE_SENSITIVITY_MIN, (float)SHADOWTOWER_MOUSE_SENSITIVITY_MAX,
+                  &mouse_sensitivity);
+    read_setting("SHADOWTOWER_STICK_SENSITIVITY", (float)SHADOWTOWER_STICK_SENSITIVITY_MIN, (float)SHADOWTOWER_STICK_SENSITIVITY_MAX,
+                  &stick_sensitivity);
+    read_setting("SHADOWTOWER_STICK_DEADZONE", (float)SHADOWTOWER_STICK_DEADZONE_MIN, (float)SHADOWTOWER_STICK_DEADZONE_MAX,
+                  &stick_deadzone);
     /* Keep camera motion linear instead of applying desktop pointer acceleration. */
     if (!SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE, "0"))
         fprintf(stderr, "Shadow Tower: cannot disable system mouse scaling; "

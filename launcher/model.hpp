@@ -2,6 +2,8 @@
 #include <exception>
 #include "toml.hpp"
 #include "psx_sha256.h"
+#include "render_scale.h"
+#include "settings_ranges.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -14,6 +16,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <utility>
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -24,61 +28,131 @@
 
 namespace launcher {
 namespace fs = std::filesystem;
+// Inclusive bounds and default for one setting. Floating-point values must also be finite.
+template <typename T> struct Range {
+    T low, high, fallback;
+    bool contains(T value) const {
+        if constexpr (std::is_floating_point_v<T>) {
+            if (!std::isfinite(value)) return false;
+        }
+        return value >= low && value <= high;
+    }
+};
+inline constexpr Range<int> volumeRange{SHADOWTOWER_VOLUME_MIN, SHADOWTOWER_VOLUME_MAX, SHADOWTOWER_VOLUME_DEFAULT};
+inline constexpr Range<int> scaleRange{1, SHADOWTOWER_MAX_INTERNAL_SCALE, 3};
+inline constexpr int maxRenderScale = scaleRange.high;
+inline constexpr Range<double> mouseSensitivityRange{SHADOWTOWER_MOUSE_SENSITIVITY_MIN,
+    SHADOWTOWER_MOUSE_SENSITIVITY_MAX, SHADOWTOWER_MOUSE_SENSITIVITY_DEFAULT};
+inline constexpr Range<double> stickSensitivityRange{SHADOWTOWER_STICK_SENSITIVITY_MIN,
+    SHADOWTOWER_STICK_SENSITIVITY_MAX, SHADOWTOWER_STICK_SENSITIVITY_DEFAULT};
+inline constexpr Range<double> stickDeadzoneRange{SHADOWTOWER_STICK_DEADZONE_MIN,
+    SHADOWTOWER_STICK_DEADZONE_MAX, SHADOWTOWER_STICK_DEADZONE_DEFAULT};
+inline constexpr Range<float> unitEffectRange{SHADOWTOWER_POSTFX_UNIT_MIN, SHADOWTOWER_POSTFX_UNIT_MAX, 0.f};
+inline constexpr std::array<const char*, 4> fmvFilters = {"nearest", "bilinear", "sharp", "bicubic"};
+
 struct PostFx {
     bool enabled = false;
-    float exposure = 0, contrast = 1, saturation = 1, grain = 0, dither = 0;
+    float exposure = SHADOWTOWER_POSTFX_EXPOSURE_DEFAULT, contrast = SHADOWTOWER_POSTFX_CONTRAST_DEFAULT;
+    float saturation = SHADOWTOWER_POSTFX_SATURATION_DEFAULT, grain = 0, dither = 0;
     float bloom = 0, scanlines = 0, mask = 0, curvature = 0;
     bool fxaa = false;
     float sharpen = 0;
 };
-inline bool validPostFx(const PostFx& p) {
-    const auto valid = [](float value, float low, float high) {
-        return std::isfinite(value) && value >= low && value <= high;
-    };
-    return valid(p.exposure, -2, 2) && valid(p.contrast, .5f, 1.5f) &&
-           valid(p.saturation, 0, 2) && valid(p.grain, 0, .2f) &&
-           valid(p.dither, 0, 1) && valid(p.bloom, 0, 1) &&
-           valid(p.scanlines, 0, 1) && valid(p.mask, 0, 1) && valid(p.curvature, 0, .2f) &&
-           valid(p.sharpen, 0, 1);
+// Every adjustable post-processing strength: settings.toml key, UI label and format, and bounds.
+struct PostFxField {
+    const char* key;
+    const char* label;
+    const char* format;
+    float PostFx::*member;
+    Range<float> range;
+};
+inline constexpr std::array<PostFxField, 10> postFxFields = {{
+    {"sharpen", "Adaptive sharpening", "%.2f", &PostFx::sharpen, unitEffectRange},
+    {"exposure", "Exposure", "%+.2f stops", &PostFx::exposure,
+     {SHADOWTOWER_POSTFX_EXPOSURE_MIN, SHADOWTOWER_POSTFX_EXPOSURE_MAX, SHADOWTOWER_POSTFX_EXPOSURE_DEFAULT}},
+    {"contrast", "Contrast", "%.2fx", &PostFx::contrast,
+     {SHADOWTOWER_POSTFX_CONTRAST_MIN, SHADOWTOWER_POSTFX_CONTRAST_MAX, SHADOWTOWER_POSTFX_CONTRAST_DEFAULT}},
+    {"saturation", "Saturation", "%.2fx", &PostFx::saturation,
+     {SHADOWTOWER_POSTFX_SATURATION_MIN, SHADOWTOWER_POSTFX_SATURATION_MAX, SHADOWTOWER_POSTFX_SATURATION_DEFAULT}},
+    {"grain", "Film grain", "%.3f", &PostFx::grain, {SHADOWTOWER_POSTFX_GRAIN_MIN, SHADOWTOWER_POSTFX_GRAIN_MAX, 0.f}},
+    {"dither", "Dithering", "%.2f", &PostFx::dither, unitEffectRange},
+    {"bloom", "Bloom", "%.2f", &PostFx::bloom, unitEffectRange},
+    {"scanlines", "Scanlines", "%.2f", &PostFx::scanlines, unitEffectRange},
+    {"mask", "RGB mask", "%.2f", &PostFx::mask, unitEffectRange},
+    {"curvature", "Curvature", "%.2f", &PostFx::curvature,
+     {SHADOWTOWER_POSTFX_CURVATURE_MIN, SHADOWTOWER_POSTFX_CURVATURE_MAX, 0.f}},
+}};
+inline const PostFxField& postFxField(const char* key) {
+    for (const auto& field : postFxFields)
+        if (std::string_view(field.key) == key) return field;
+    throw std::logic_error(std::string("Unknown post-processing field ") + key);
 }
+
 enum class PostFxPreset { original, subtle, crt, custom };
+// The values each named preset applies; detection compares against the same table.
+inline PostFx postFxPresetValues(PostFxPreset preset) {
+    PostFx p;
+    switch (preset) {
+    case PostFxPreset::subtle:
+        p.enabled = true; p.contrast = 1.05f; p.saturation = .9f;
+        p.grain = .015f; p.dither = .1f; p.bloom = .08f; break;
+    case PostFxPreset::crt:
+        p.enabled = true; p.contrast = 1.05f; p.grain = .02f; p.dither = .25f;
+        p.bloom = .08f; p.scanlines = .3f; p.mask = .15f; p.curvature = .04f; break;
+    case PostFxPreset::original:
+    case PostFxPreset::custom: break;
+    }
+    return p;
+}
+inline bool samePostFx(const PostFx& a, const PostFx& b) {
+    if (a.enabled != b.enabled || a.fxaa != b.fxaa) return false;
+    for (const auto& field : postFxFields)
+        if (a.*field.member != b.*field.member) return false;
+    return true;
+}
 inline PostFxPreset postFxPreset(const PostFx& p) {
-    if (p.fxaa || p.sharpen != 0) return PostFxPreset::custom;
-    if (!p.enabled && p.exposure == 0 && p.contrast == 1 && p.saturation == 1 &&
-        p.grain == 0 && p.dither == 0 && p.bloom == 0 && p.scanlines == 0 &&
-        p.mask == 0 && p.curvature == 0) return PostFxPreset::original;
-    if (p.enabled && p.exposure == 0 && p.contrast == 1.05f && p.saturation == .9f &&
-        p.grain == .015f && p.dither == .1f && p.bloom == .08f &&
-        p.scanlines == 0 && p.mask == 0 && p.curvature == 0) return PostFxPreset::subtle;
-    if (p.enabled && p.exposure == 0 && p.contrast == 1.05f && p.saturation == 1 &&
-        p.grain == .02f && p.dither == .25f && p.bloom == .08f &&
-        p.scanlines == .3f && p.mask == .15f && p.curvature == .04f) return PostFxPreset::crt;
+    for (const auto preset : {PostFxPreset::original, PostFxPreset::subtle, PostFxPreset::crt})
+        if (samePostFx(p, postFxPresetValues(preset))) return preset;
     return PostFxPreset::custom;
 }
 inline void applyPostFxPreset(PostFx& p, PostFxPreset preset) {
-    switch (preset) {
-    case PostFxPreset::original: p = PostFx{}; break;
-    case PostFxPreset::subtle:
-        p = PostFx{}; p.enabled = true; p.contrast = 1.05f; p.saturation = .9f;
-        p.grain = .015f; p.dither = .1f; p.bloom = .08f; break;
-    case PostFxPreset::crt:
-        p = PostFx{}; p.enabled = true; p.contrast = 1.05f; p.grain = .02f;
-        p.dither = .25f; p.bloom = .08f; p.scanlines = .3f; p.mask = .15f;
-        p.curvature = .04f; break;
-    case PostFxPreset::custom: break;
-    }
+    if (preset != PostFxPreset::custom) p = postFxPresetValues(preset);
 }
-inline constexpr int maxRenderScale = 8;
-inline constexpr std::array<const char*, 4> fmvFilters = {"nearest", "bilinear", "sharp", "bicubic"};
+
 struct Settings {
-    int wideRatio = 0, scale = 3, volume = 100, fmvFilter = 0;
+    int wideRatio = 0, scale = scaleRange.fallback, volume = volumeRange.fallback, fmvFilter = 0;
     bool outputFiltering = false;
     bool widescreen = false, fullscreen = false, filter = true, geometry = true, perspective = true;
     bool vsync = true, lowLatency = true;
-    double mouseSensitivity = 1.0;
-    double stickSensitivity = 1.0, stickDeadzone = 0.15;
+    double mouseSensitivity = mouseSensitivityRange.fallback;
+    double stickSensitivity = stickSensitivityRange.fallback, stickDeadzone = stickDeadzoneRange.fallback;
     PostFx postFx;
 };
+// Name the first out-of-range setting, or return an empty string when all are valid.
+inline std::string invalidSetting(const Settings& s) {
+    const auto describe = [](const char* name, auto value, auto low, auto high) {
+        std::ostringstream out;
+        out.imbue(std::locale::classic());
+        out << name << " is " << value << "; allowed range is " << low << " to " << high;
+        return out.str();
+    };
+    if (s.wideRatio < 0 || s.wideRatio > 1) return describe("Aspect ratio", s.wideRatio, 0, 1);
+    if (!scaleRange.contains(s.scale)) return describe("Resolution scale", s.scale, scaleRange.low, scaleRange.high);
+    if (s.fmvFilter < 0 || s.fmvFilter >= static_cast<int>(fmvFilters.size()))
+        return describe("FMV filtering", s.fmvFilter, 0, fmvFilters.size() - 1);
+    if (!volumeRange.contains(s.volume)) return describe("Volume", s.volume, volumeRange.low, volumeRange.high);
+    const std::pair<const char*, std::pair<double, Range<double>>> doubles[] = {
+        {"Mouse sensitivity", {s.mouseSensitivity, mouseSensitivityRange}},
+        {"Stick sensitivity", {s.stickSensitivity, stickSensitivityRange}},
+        {"Stick deadzone", {s.stickDeadzone, stickDeadzoneRange}},
+    };
+    for (const auto& [name, entry] : doubles)
+        if (!entry.second.contains(entry.first)) return describe(name, entry.first, entry.second.low, entry.second.high);
+    for (const auto& field : postFxFields)
+        if (!field.range.contains(s.postFx.*field.member))
+            return describe(field.label, s.postFx.*field.member, field.range.low, field.range.high);
+    return {};
+}
 // Translate launcher preferences into overrides consumed by the game runtime.
 inline std::array<std::pair<std::string, std::string>, 9> gameEnvironment(const Settings& s) {
     std::string postFx = "0";
@@ -104,18 +178,29 @@ inline std::array<std::pair<std::string, std::string>, 9> gameEnvironment(const 
 }
 // Presets alter only graphics quality; custom values and display preferences survive.
 enum class GraphicsPreset { performance, balanced, quality, custom };
+struct GraphicsPresetValues {
+    GraphicsPreset preset;
+    int scale;
+    bool filter, geometry, perspective;
+};
+inline constexpr std::array<GraphicsPresetValues, 3> graphicsPresets = {{
+    {GraphicsPreset::performance, 1, false, false, false},
+    {GraphicsPreset::balanced, 2, true, true, false},
+    {GraphicsPreset::quality, 4, true, true, true},
+}};
 inline GraphicsPreset graphicsPreset(const Settings& s) {
-    if (s.scale == 1 && !s.filter && !s.geometry && !s.perspective) return GraphicsPreset::performance;
-    if (s.scale == 2 && s.filter && s.geometry && !s.perspective) return GraphicsPreset::balanced;
-    if (s.scale == 4 && s.filter && s.geometry && s.perspective) return GraphicsPreset::quality;
+    for (const auto& values : graphicsPresets)
+        if (s.scale == values.scale && s.filter == values.filter && s.geometry == values.geometry &&
+            s.perspective == values.perspective) return values.preset;
     return GraphicsPreset::custom;
 }
 inline void applyGraphicsPreset(Settings& s, GraphicsPreset preset) {
-    switch (preset) {
-    case GraphicsPreset::performance: s.scale = 1; s.filter = s.geometry = s.perspective = false; break;
-    case GraphicsPreset::balanced: s.scale = 2; s.filter = s.geometry = true; s.perspective = false; break;
-    case GraphicsPreset::quality: s.scale = 4; s.filter = s.geometry = s.perspective = true; break;
-    case GraphicsPreset::custom: break;
+    for (const auto& values : graphicsPresets) {
+        if (values.preset != preset) continue;
+        s.scale = values.scale;
+        s.filter = values.filter;
+        s.geometry = values.geometry;
+        s.perspective = values.perspective;
     }
 }
 // Parse through a filesystem-aware stream so Unicode Windows paths work.
@@ -134,7 +219,7 @@ inline void overlay(Settings& s, const toml::value& root) {
             if (s.widescreen) s.wideRatio = aspect == "21:9" ? 1 : 0;
         }
         const int scale = toml::find_or(v, "supersampling", s.scale);
-        if (scale >= 1 && scale <= maxRenderScale) s.scale = scale;
+        if (scaleRange.contains(scale)) s.scale = scale;
         s.fullscreen = toml::find_or(v, "fullscreen", s.fullscreen);
         s.outputFiltering = toml::find_or(v, "antialiasing", s.outputFiltering);
         const auto fmv = str("fmv_filter", fmvFilters[s.fmvFilter]);
@@ -153,36 +238,28 @@ inline void overlay(Settings& s, const toml::value& root) {
         const auto& options = root.at("launcher");
         s.vsync = toml::find_or(options, "vsync", s.vsync);
         s.lowLatency = toml::find_or(options, "low_latency", s.lowLatency);
-        const double sensitivity = toml::find_or(options, "mouse_sensitivity", s.mouseSensitivity);
-        if (std::isfinite(sensitivity) && sensitivity >= 0.05 && sensitivity <= 10.0)
-            s.mouseSensitivity = sensitivity;
-        const double stick = toml::find_or(options, "stick_sensitivity", s.stickSensitivity);
-        if (std::isfinite(stick) && stick >= 0.1 && stick <= 5.0) s.stickSensitivity = stick;
-        const double deadzone = toml::find_or(options, "stick_deadzone", s.stickDeadzone);
-        if (std::isfinite(deadzone) && deadzone >= 0 && deadzone <= 0.9) s.stickDeadzone = deadzone;
+        const auto ranged = [&](const char* key, double& target, const Range<double>& range) {
+            const double value = toml::find_or(options, key, target);
+            if (range.contains(value)) target = value;
+        };
+        ranged("mouse_sensitivity", s.mouseSensitivity, mouseSensitivityRange);
+        ranged("stick_sensitivity", s.stickSensitivity, stickSensitivityRange);
+        ranged("stick_deadzone", s.stickDeadzone, stickDeadzoneRange);
     }
     if (root.contains("post_processing") && root.at("post_processing").is_table()) {
         const auto& p = root.at("post_processing");
         s.postFx.enabled = toml::find_or(p, "enabled", s.postFx.enabled);
-        const auto field = [&](const char* key, float& target, float low, float high) {
-            const double value = toml::find_or(p, key, static_cast<double>(target));
-            if (std::isfinite(value) && value >= low && value <= high) target = static_cast<float>(value);
-        };
-        field("exposure", s.postFx.exposure, -2, 2);
-        field("contrast", s.postFx.contrast, .5f, 1.5f);
-        field("saturation", s.postFx.saturation, 0, 2);
-        field("grain", s.postFx.grain, 0, .2f);
-        field("dither", s.postFx.dither, 0, 1);
-        field("bloom", s.postFx.bloom, 0, 1);
-        field("scanlines", s.postFx.scanlines, 0, 1);
-        field("mask", s.postFx.mask, 0, 1);
-        field("curvature", s.postFx.curvature, 0, .2f);
         s.postFx.fxaa = toml::find_or(p, "fxaa", s.postFx.fxaa);
-        field("sharpen", s.postFx.sharpen, 0, 1);
+        for (const auto& field : postFxFields) {
+            float& target = s.postFx.*field.member;
+            const double value = toml::find_or(p, field.key, static_cast<double>(target));
+            if (std::isfinite(value) && value >= field.range.low && value <= field.range.high)
+                target = static_cast<float>(value);
+        }
     }
     if (root.contains("audio") && root.at("audio").is_table()) {
         const int volume = toml::find_or(root.at("audio"), "volume", s.volume);
-        if (volume >= 0 && volume <= 100) s.volume = volume;
+        if (volumeRange.contains(volume)) s.volume = volume;
     }
 }
 // Layer user preferences over the title's defaults.
@@ -212,14 +289,29 @@ inline std::string setAsideCorruptSettings(const fs::path& workspace) {
     return "settings.toml could not be parsed, so it was moved to " + aside.filename().u8string() +
            " and defaults were loaded.\n" + error;
 }
+// Read a setup stage marker ("[setup 2/3] Generating game code") written by
+// tools/launcher_backend.py. Returns the status text, or empty for other lines.
+inline std::string setupStage(std::string_view line) {
+    while (!line.empty() && (line.back() == '\r' || line.back() == '\n')) line.remove_suffix(1);
+    constexpr std::string_view prefix = "[setup ";
+    if (line.substr(0, prefix.size()) != prefix) return {};
+    line.remove_prefix(prefix.size());
+    const auto slash = line.find('/');
+    const auto close = line.find("] ");
+    if (slash == std::string_view::npos || close == std::string_view::npos || slash == 0 || slash + 1 >= close)
+        return {};
+    const auto digits = [](std::string_view text) {
+        return std::all_of(text.begin(), text.end(), [](char c) { return c >= '0' && c <= '9'; });
+    };
+    const auto step = line.substr(0, slash), total = line.substr(slash + 1, close - slash - 1);
+    const auto label = line.substr(close + 2);
+    if (!digits(step) || !digits(total) || label.empty()) return {};
+    return std::string(step) + " / " + std::string(total) + "  " + std::string(label);
+}
 // Replace only launcher-owned preferences, preserving other TOML fields.
 inline void save(const fs::path& workspace, const Settings& s) {
-    if (s.wideRatio < 0 || s.wideRatio > 1 || s.scale < 1 || s.scale > maxRenderScale || s.fmvFilter < 0 || s.fmvFilter >= static_cast<int>(fmvFilters.size()) || s.volume < 0 || s.volume > 100 ||
-        !std::isfinite(s.mouseSensitivity) || s.mouseSensitivity < 0.05 || s.mouseSensitivity > 10.0 ||
-        !std::isfinite(s.stickSensitivity) || s.stickSensitivity < 0.1 || s.stickSensitivity > 5.0 ||
-        !std::isfinite(s.stickDeadzone) || s.stickDeadzone < 0 || s.stickDeadzone > 0.9 ||
-        !validPostFx(s.postFx))
-        throw std::invalid_argument("Invalid settings range");
+    if (const auto problem = invalidSetting(s); !problem.empty())
+        throw std::invalid_argument("Cannot save settings: " + problem + ".");
     const auto file = workspace / "build-release/settings.toml";
     toml::value doc = fs::exists(file) ? parse(file) : toml::value(toml::table{});
     if (!doc.contains("video")) doc["video"] = toml::table{};
@@ -246,17 +338,8 @@ inline void save(const fs::path& workspace, const Settings& s) {
     doc["audio"]["volume"] = s.volume;
     auto& p = doc["post_processing"];
     p["enabled"] = s.postFx.enabled;
-    p["exposure"] = static_cast<double>(s.postFx.exposure);
-    p["contrast"] = static_cast<double>(s.postFx.contrast);
-    p["saturation"] = static_cast<double>(s.postFx.saturation);
-    p["grain"] = static_cast<double>(s.postFx.grain);
-    p["dither"] = static_cast<double>(s.postFx.dither);
-    p["bloom"] = static_cast<double>(s.postFx.bloom);
-    p["scanlines"] = static_cast<double>(s.postFx.scanlines);
-    p["mask"] = static_cast<double>(s.postFx.mask);
-    p["curvature"] = static_cast<double>(s.postFx.curvature);
     p["fxaa"] = s.postFx.fxaa;
-    p["sharpen"] = static_cast<double>(s.postFx.sharpen);
+    for (const auto& field : postFxFields) p[field.key] = static_cast<double>(s.postFx.*field.member);
     fs::create_directories(file.parent_path());
     auto temporary = file;
     temporary += ".tmp";

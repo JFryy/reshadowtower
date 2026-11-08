@@ -29,6 +29,10 @@ class ModernControlsTests(unittest.TestCase):
                                                  "SHADOWTOWER_STICK_SENSITIVITY": stick_sensitivity,
                                                  "SHADOWTOWER_STICK_DEADZONE": deadzone})
                     self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stderr.count("gameplay code at 0x80041EA4 does not match "
+                                                         "(found 0xDEADBEEF, expected 0xA4C3027A); "
+                                                         "camera look paused while it differs."), 1, result.stderr)
+                    self.assertEqual(result.stderr.count("does not match"), 1, result.stderr)
                     if sensitivity == "invalid":
                         for name in ("MOUSE_SENSITIVITY", "STICK_SENSITIVITY", "STICK_DEADZONE"):
                             self.assertIn(f"invalid SHADOWTOWER_{name}", result.stderr)

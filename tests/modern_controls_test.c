@@ -35,7 +35,8 @@ const char *SDL_GetError(void) { return "fake"; }
 bool SDL_SetHint(const char *a, const char *b) { (void)a; (void)b; return true; }
 bool SDL_PollEvent(SDL_Event *e) { if (!event_available) return false; *e=event_value; event_available=false; return true; }
 uint16_t psx_keybinds_pad_word(const uint8_t *keys, int p) { pad_player=p; memcpy(pad_keys, keys, sizeof pad_keys); return pad_value; }
-uint32_t psx_mod_read_word(uint32_t a) { if (a==0x80041D4c) return 0x27BDFFE8; if (a==0x80041D50) return 0x3C02801D; if (a==0x80041EA4) return 0xA4C3027A; if (a==0x80042088) return 0xA6020278; return 0; }
+int wrong_code;
+uint32_t psx_mod_read_word(uint32_t a) { if (wrong_code && a==0x80041EA4) return 0xDEADBEEF; if (a==0x80041D4c) return 0x27BDFFE8; if (a==0x80041D50) return 0x3C02801D; if (a==0x80041EA4) return 0xA4C3027A; if (a==0x80042088) return 0xA6020278; return 0; }
 uint16_t psx_mod_read_half(uint32_t a) { return mem[(a-0x801991A0)/2]; }
 void psx_mod_write_half(uint32_t a, uint16_t v) { mem[(a-0x801991A0)/2]=v; }
 bool psx_mod_register_function_entry_plugin(const char*a,uint32_t b,void(*c)(CPUState*,uint32_t)) { return true; }
@@ -214,5 +215,15 @@ int main(void) {
     ticks += 16;
     poll(keys, 1);
     T(fabsf(pending_x - (2 * full_step + 10 * mouse_sensitivity)) < 0.01f);
+
+    /* A foreign executable at the hook addresses disables look and logs once. */
+    wrong_code = 1;
+    pending_x = 5;
+    last_look = 0;
+    update_camera(NULL, 0);
+    update_camera(NULL, 0);
+    T(last_look == 0 && pending_x == 5);
+    last_look = ticks;
+    poll(keys, 1);
     return 0;
 }

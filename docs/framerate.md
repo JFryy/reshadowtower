@@ -7,8 +7,11 @@ update frequency but also increased game speed. Frame blending and whole-machine
 VBlank-rate changes are not substitutes for a speed-correct unlock.
 
 Evidence comes from `SLUS-00863` gameplay RAM and a short isolated headless run.
-Scratch data and the diagnostic script are under ignored `analysis/`; no disc
-files or normal saves were modified.
+Scratch data is under ignored `analysis/`; no disc files or normal saves were
+modified. Reproduce the comparison below with `python3 tools/measure_framerate.py
+--binary build-debug/Shadow_Tower_Recompiled` (it needs a build with the debug server).
+It holds turn-right for 81 VBlanks in both modes by default; pass `--mode unlocked
+--vblanks 60` to match the window of the experimental row.
 
 ## Confirmed loop and wait
 
