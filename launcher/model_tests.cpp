@@ -215,6 +215,24 @@ int main() {
         std::string preserved;
         std::getline(broken, preserved);
         require(preserved == "[broken");
+        broken.close();
+        const auto notice = launcher::setAsideCorruptSettings(root);
+        require(notice.find("settings.toml.corrupt-") != std::string::npos);
+        require(!fs::exists(root / "build-release/settings.toml"));
+        int asideCount = 0;
+        for (const auto& entry : fs::directory_iterator(root / "build-release")) {
+            if (entry.path().filename().u8string().rfind("settings.toml.corrupt-", 0) != 0) continue;
+            std::ifstream aside(entry.path());
+            std::string kept;
+            std::getline(aside, kept);
+            require(kept == "[broken");
+            ++asideCount;
+        }
+        require(asideCount == 1);
+        require(launcher::load(root).mouseSensitivity == 1.0);
+        require(launcher::setAsideCorruptSettings(root).empty());
+        launcher::save(root, launcher::Settings{});
+        require(launcher::setAsideCorruptSettings(root).empty());
         std::ofstream(root / "build-release" / launcher::executable(root).filename()) << "abc";
         std::ofstream(root / ".build-ready") << "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n";
         require(launcher::ready(root));

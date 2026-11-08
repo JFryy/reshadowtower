@@ -1,0 +1,234 @@
+# source-sha256: 06250e049ba5eeb4d003ae53955fed66143b622b2564971c0a5faa10495bff48
+--- a/psxrecomp/runtime/src/memcard.c
++++ b/psxrecomp/runtime/src/memcard.c
+@@ -12,26 +12,152 @@
+  *   - No fake events found (clean)
+  */
+ 
++#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
++#define _POSIX_C_SOURCE 200809L
++#endif
+ #include "memcard.h"
++#include <errno.h>
+ #include <stdio.h>
+ #include <string.h>
+ #include <stdlib.h>
++#include <time.h>
+ #include <sys/stat.h>
+ #ifdef _WIN32
+ #include <direct.h>
++#include <io.h>
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#else
++#include <unistd.h>
+ #endif
+ 
+ #define MAX_CARDS 2
++#define MEMCARD_PATH_MAX 512
+ 
+ typedef struct {
+     uint8_t data[MEMCARD_SIZE];
+-    char filepath[512];
++    char filepath[MEMCARD_PATH_MAX];
+     int present;
+     int dirty;
++    int write_failed;
+ } MemCard;
+ 
+ static MemCard cards[MAX_CARDS];
+ 
++/* Card files already copied to <path>.bak by this process. Kept outside
++ * cards[] so re-init and rebinding never refresh a backup mid-session. */
++#define MEMCARD_MAX_BACKUPS 16
++static char backed_up[MEMCARD_MAX_BACKUPS][MEMCARD_PATH_MAX];
++static int backed_up_count;
++
++static int memcard_sync_file(FILE* f) {
++#ifdef _WIN32
++    return _commit(_fileno(f));
++#else
++    return fsync(fileno(f));
++#endif
++}
++
++/* Write a file via <path>.tmp + rename so a crash leaves either the old or
++ * the new contents, never a truncated file. Errors are logged when log_errors
++ * is set; the per-sector flush path passes 0 after the first failure. */
++static int memcard_write_file(const char* path, const uint8_t* data, size_t size, int log_errors) {
++    char tmp[MEMCARD_PATH_MAX + 8];
++    if (snprintf(tmp, sizeof(tmp), "%s.tmp", path) >= (int)sizeof(tmp)) {
++        if (log_errors) fprintf(stderr, "memcard: path too long to save: %s\n", path);
++        return -1;
++    }
++    FILE* f = fopen(tmp, "wb");
++    if (!f) {
++        if (log_errors) fprintf(stderr, "memcard: cannot create %s: %s\n", tmp, strerror(errno));
++        return -1;
++    }
++    int ok = fwrite(data, 1, size, f) == size && fflush(f) == 0 && memcard_sync_file(f) == 0;
++    int saved_errno = errno;
++    if (fclose(f) != 0 && ok) {
++        ok = 0;
++        saved_errno = errno;
++    }
++    if (!ok) {
++        if (log_errors) fprintf(stderr, "memcard: cannot write %s: %s\n", tmp, strerror(saved_errno));
++        remove(tmp);
++        return -1;
++    }
++#ifdef _WIN32
++    /* MSVCRT rename() refuses to overwrite an existing file. */
++    if (!MoveFileExA(tmp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
++        if (log_errors)
++            fprintf(stderr, "memcard: cannot replace %s with %s: Windows error %lu\n", path, tmp,
++                    (unsigned long)GetLastError());
++#else
++    if (rename(tmp, path) != 0) {
++        if (log_errors) fprintf(stderr, "memcard: cannot replace %s with %s: %s\n", path, tmp, strerror(errno));
++#endif
++        remove(tmp);
++        return -1;
++    }
++    return 0;
++}
++
++/* Record path as backed up for this process. Returns 1 if newly recorded, 0
++ * if it already was (or the list is full). */
++static int memcard_claim_backup(const char* path) {
++    for (int i = 0; i < backed_up_count; i++) {
++        if (strcmp(backed_up[i], path) == 0) return 0;
++    }
++    if (backed_up_count == MEMCARD_MAX_BACKUPS) {
++        fprintf(stderr, "memcard: too many card files this session; not backing up %s\n", path);
++        return 0;
++    }
++    snprintf(backed_up[backed_up_count++], MEMCARD_PATH_MAX, "%s", path);
++    return 1;
++}
++
++/* Before the first write to a card file in this process, copy its current
++ * contents to <path>.bak. Attempted once per path; a failure is logged and
++ * does not block the save itself. */
++static void memcard_backup_once(const char* path) {
++    if (!memcard_claim_backup(path)) return;
++
++    FILE* f = fopen(path, "rb");
++    if (!f) return;  /* nothing on disk yet */
++    uint8_t* data = (uint8_t*)malloc(MEMCARD_SIZE);
++    if (!data) {
++        fclose(f);
++        fprintf(stderr, "memcard: out of memory backing up %s\n", path);
++        return;
++    }
++    size_t n = fread(data, 1, MEMCARD_SIZE, f);
++    int read_ok = !ferror(f);
++    fclose(f);
++
++    char bak[MEMCARD_PATH_MAX + 8];
++    if (!read_ok) {
++        fprintf(stderr, "memcard: cannot read %s for backup\n", path);
++    } else if (snprintf(bak, sizeof(bak), "%s.bak", path) >= (int)sizeof(bak)) {
++        fprintf(stderr, "memcard: path too long to back up: %s\n", path);
++    } else {
++        memcard_write_file(bak, data, n, 1);
++    }
++    free(data);
++}
++
++/* Move an unreadable card file to <path>.damaged-<unix time> so it is kept
++ * for recovery instead of being overwritten. */
++static int memcard_set_aside(const char* path) {
++    char aside[MEMCARD_PATH_MAX + 32];
++    if (snprintf(aside, sizeof(aside), "%s.damaged-%lld", path, (long long)time(NULL)) >= (int)sizeof(aside)) {
++        fprintf(stderr, "memcard: path too long to set aside: %s\n", path);
++        return -1;
++    }
++    if (rename(path, aside) != 0) {
++        fprintf(stderr, "memcard: cannot move damaged card %s to %s: %s\n", path, aside, strerror(errno));
++        return -1;
++    }
++    fprintf(stderr, "memcard: %s is damaged; moved it to %s and created a blank card\n", path, aside);
++    return 0;
++}
++
+ /* XOR checksum of bytes 0x00-0x7E, stored at 0x7F. */
+ static uint8_t frame_checksum(const uint8_t *frame) {
+     uint8_t xor_val = 0;
+@@ -144,18 +270,18 @@
+             fclose(f);
+             if (n == MEMCARD_SIZE) {
+                 cards[i].present = 1;
++                continue;
+             }
+-        } else {
+-            memcard_format(cards[i].data);
+-            f = fopen(cards[i].filepath, "wb");
+-            if (f) {
+-                size_t n = fwrite(cards[i].data, 1, MEMCARD_SIZE, f);
+-                int flush_ok = (fflush(f) == 0);
+-                int close_ok = (fclose(f) == 0);
+-                if (n == MEMCARD_SIZE && flush_ok && close_ok) {
+-                    cards[i].present = 1;
+-                }
+-            }
++            if (memcard_set_aside(cards[i].filepath) != 0) continue;
++        } else if (errno != ENOENT) {
++            fprintf(stderr, "memcard: cannot open %s: %s\n", cards[i].filepath, strerror(errno));
++            continue;
++        }
++        /* Keep any .bak from an earlier session instead of backing up this blank card. */
++        (void)memcard_claim_backup(cards[i].filepath);
++        memcard_format(cards[i].data);
++        if (memcard_write_file(cards[i].filepath, cards[i].data, MEMCARD_SIZE, 1) == 0) {
++            cards[i].present = 1;
+         }
+     }
+ }
+@@ -170,16 +296,9 @@
+     uint8_t* data = (uint8_t*)malloc(MEMCARD_SIZE);
+     if (!data) return -1;
+     memcard_format(data);
+-    FILE* f = fopen(path, "wb");
+-    int ok = 0;
+-    if (f) {
+-        size_t n = fwrite(data, 1, MEMCARD_SIZE, f);
+-        int flush_ok = (fflush(f) == 0);
+-        int close_ok = (fclose(f) == 0);
+-        ok = (n == MEMCARD_SIZE && flush_ok && close_ok);
+-    }
++    int result = memcard_write_file(path, data, MEMCARD_SIZE, 1);
+     free(data);
+-    return ok ? 0 : -1;
++    return result;
+ }
+ 
+ int memcard_summary_path(const char* path, MemcardSummary* out) {
+@@ -245,15 +364,19 @@
+     if (!cards[card].dirty) return;
+     if (cards[card].filepath[0] == '\0') return;
+ 
+-    FILE* f = fopen(cards[card].filepath, "wb");
+-    if (f) {
+-        size_t n = fwrite(cards[card].data, 1, MEMCARD_SIZE, f);
+-        int flush_ok = (fflush(f) == 0);
+-        int close_ok = (fclose(f) == 0);
+-        if (n == MEMCARD_SIZE && flush_ok && close_ok) {
+-            cards[card].dirty = 0;
+-        }
++    memcard_backup_once(cards[card].filepath);
++    /* dirty stays set on failure so the next flush retries; log only the
++     * first failure of a streak since flushes follow every sector write. */
++    if (memcard_write_file(cards[card].filepath, cards[card].data, MEMCARD_SIZE, !cards[card].write_failed) != 0) {
++        if (!cards[card].write_failed)
++            fprintf(stderr, "memcard: save to card %d failed; will retry on the next write\n", card + 1);
++        cards[card].write_failed = 1;
++        return;
+     }
++    if (cards[card].write_failed)
++        fprintf(stderr, "memcard: save to card %d succeeded after earlier failures\n", card + 1);
++    cards[card].write_failed = 0;
++    cards[card].dirty = 0;
+ }
+ 
+ void memcard_flush_all(void) {
