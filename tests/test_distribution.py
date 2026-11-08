@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -146,6 +147,16 @@ class DistributionTests(unittest.TestCase):
         self.assertNotIn("cmake/setup.cmake", cmake)
         for path in package_release.PROJECT_FILES:
             self.assertTrue((root / path).is_file(), path)
+
+    def test_release_packages_every_build_input(self):
+        root = package_release.ROOT
+        packaged = set(package_release.PROJECT_FILES)
+        included = re.findall(r"^include\((cmake/[^)]+\.cmake)\)", (root / "CMakeLists.txt").read_text(), re.M)
+        self.assertTrue(included)
+        expected = set(included)
+        expected |= {path.relative_to(root).as_posix() for path in (root / "patches").glob("*.patch")}
+        expected |= {path.relative_to(root).as_posix() for path in (root / "src").iterdir() if path.is_file()}
+        self.assertEqual(sorted(expected - packaged), [])
 
 
 if __name__ == "__main__":

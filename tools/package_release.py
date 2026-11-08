@@ -30,6 +30,7 @@ IMGUI_FILES = (
 PROJECT_FILES = (
     "CMakeLists.txt", "game.toml", "config.ini", "VERSION", "LICENSE",
     "cmake/graphics.cmake", "cmake/input.cmake", "cmake/overrides.cmake", "cmake/recompiler_overrides.cmake",
+    "cmake/saves.cmake",
     "cmake/dependencies.cmake",
     "cmake/generate_codegen_hash.cmake",
     "cmake/dependencies.json", "cmake/dependencies/CMakeLists.txt", "tools/dependencies.py",
@@ -42,6 +43,7 @@ PROJECT_FILES = (
     "cmake/adapters.cmake", "patches/runtime-input.patch", "patches/runtime-graphics.patch",
     "patches/runtime-widescreen.patch", "patches/runtime-settings.patch", "patches/runtime-software.patch",
     "patches/runtime-overrides.patch", "patches/runtime-overrides-interp.patch", "patches/recompiler-overrides.patch",
+    "patches/runtime-memcard.patch",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",
     "assets/setup/boxart.tga", "assets/setup/music.wav",
 )
