@@ -249,8 +249,8 @@ class PostFxGL(unittest.TestCase):
     def test_disabled_and_neutral_match_original(self):
         for mode, blend in (("present", 0), ("interp", 0), ("interp", 1)):
             with self.subTest(mode=mode, blend=blend):
-                options = dict(mode=mode, blend_mode=blend,
-                               previous=bytes((180, 70, 120, 255)) * 256)
+                options = {"mode": mode, "blend_mode": blend,
+                               "previous": bytes((180, 70, 120, 255)) * 256}
                 baseline = self._render(original=True, **options)
                 self.assertEqual(self._render(**options), baseline)
                 self.assertEqual(self._render(enabled=1, **options), baseline)
@@ -261,7 +261,7 @@ class PostFxGL(unittest.TestCase):
     def test_movie_filters_reconstruct_the_image_and_preserve_flat_colors(self):
         # Sharp-bilinear intentionally matches nearest at integer magnification.
         self.assertTrue(self._render(sharp=1, linear=True) == self._render())
-        options = dict(output_size=(63, 61))
+        options = {"output_size": (63, 61)}
         nearest = self._render(**options)
         bilinear = self._render(linear=True, **options)
         self.assertTrue(nearest != bilinear, "Linear filtering should affect fractional scaling")
@@ -282,7 +282,7 @@ class PostFxGL(unittest.TestCase):
         color = self._render(enabled=1, saturation=0.)
         p = self._pixel(color, 32, 32)
         self.assertLess(max(p[:3])-min(p[:3]), 2)
-        for effect in (dict(grain=.2), dict(dither=1.), dict(scanlines=1.), dict(mask=1.)):
+        for effect in ({"grain": .2}, {"dither": 1.}, {"scanlines": 1.}, {"mask": 1.}):
             with self.subTest(effect=effect):
                 result = self._render(enabled=1, pixels=gray, **effect)
                 self.assertNotEqual(result, baseline)
@@ -294,7 +294,7 @@ class PostFxGL(unittest.TestCase):
     def test_detail_effects_preserve_flat_images_and_respect_master_switch(self):
         gray = bytes((96, 96, 96, 255)) * 256
         for mode in ("present", "interp"):
-            for options in (dict(fxaa=1.), dict(sharpen=1.), dict(fxaa=1., sharpen=1.)):
+            for options in ({"fxaa": 1.}, {"sharpen": 1.}, {"fxaa": 1., "sharpen": 1.}):
                 with self.subTest(mode=mode, options=options):
                     self.assertEqual(self._render(mode=mode, pixels=gray, enabled=1, **options),
                                      self._render(mode=mode, pixels=gray))

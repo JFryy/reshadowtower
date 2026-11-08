@@ -29,19 +29,23 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: '3.12'
+      - name: Install locked Python dependencies
+        run: uv sync --locked
       - name: Install Windows dependency bootstrap tools
         if: runner.os == 'Windows'
-        run: python -m pip install ninja==1.11.1.4
+        run: |
+          uv tool install ninja==1.11.1.4
+          uv tool dir --bin >> "$GITHUB_PATH"
       - name: Resolve pinned framework dependencies
-        run: python tools/dependencies.py
+        run: uv run python tools/dependencies.py
       - name: Download pinned build inputs
         env:
           RELEASE_PLATFORM: ${{ matrix.platform }}
         run: |
-          python - <<'PY'
+          uv run python - <<'PY'
           import os, pathlib, sys, urllib.request
           sys.path.insert(0, 'tools')
           from bundled_toolchain import PINS
@@ -62,23 +66,23 @@ jobs:
           PY
       - name: Targeted packaging tests
         run: |
-          python -m unittest discover -s tests -p 'test_release_launcher.py'
-          python -m unittest discover -s tests -p 'test_launcher_backend.py'
-          python -m unittest discover -s tests -p 'test_source_adapters.py'
-          python -m unittest discover -s tests -p 'test_render_scale.py'
-          SDL_VIDEO_DRIVER=offscreen python -m unittest discover -s tests -p 'test_post_processing.py'
-          python -m unittest discover -s tests -p 'test_distribution.py'
+          uv run python -m unittest discover -s tests -p 'test_release_launcher.py'
+          uv run python -m unittest discover -s tests -p 'test_launcher_backend.py'
+          uv run python -m unittest discover -s tests -p 'test_source_adapters.py'
+          uv run python -m unittest discover -s tests -p 'test_render_scale.py'
+          SDL_VIDEO_DRIVER=offscreen uv run python -m unittest discover -s tests -p 'test_post_processing.py'
+          uv run python -m unittest discover -s tests -p 'test_distribution.py'
       - name: Archive safety and emitter discovery tests
         if: runner.os == 'Linux'
         run: |
-          python -m unittest discover -s tests -p 'test_bundled_toolchain.py'
-          python -m unittest discover -s tests -p 'test_bundled_sdl.py'
-          python -m unittest discover -s tests -p 'test_generate_aot.py'
+          uv run python -m unittest discover -s tests -p 'test_bundled_toolchain.py'
+          uv run python -m unittest discover -s tests -p 'test_bundled_sdl.py'
+          uv run python -m unittest discover -s tests -p 'test_generate_aot.py'
       - name: Build offline release tools without game data
         run: |
           extra=()
           if [[ '${{ matrix.platform }}' == linux-x64 ]]; then extra+=(--sdl-archive build-inputs/SDL3-3.4.16.tar.gz); fi
-          python tools/build_release.py --toolchain-archive build-inputs/toolchain.zip --output build-offline "${extra[@]}"
+          uv run python tools/build_release.py --toolchain-archive build-inputs/toolchain.zip --output build-offline "${extra[@]}"
       - name: Stage verified package from release metadata
         run: |
           test -s "build-offline/host/shadowtower-launcher$(if [[ '${{ matrix.platform }}' == windows-x64 ]]; then printf .exe; fi)"
@@ -86,14 +90,14 @@ jobs:
           if [[ '${{ matrix.platform }}' == windows-x64 ]]; then
             extra+=(--windows-launcher build-offline/launcher/ReShadowTower.exe)
           fi
-          python tools/package_release.py --build build-offline/host \
+          uv run python tools/package_release.py --build build-offline/host \
             --emitters build-offline/emitters --platform '${{ matrix.platform }}' \
             --toolchain-archive build-inputs/toolchain.zip --output dist/package "${extra[@]}"
       - name: Build AppImage or installer
         run: |
           tool=build-inputs/packager.AppImage
           if [[ '${{ matrix.platform }}' == windows-x64 ]]; then tool=build-inputs/packager.exe; fi
-          python tools/make_distribution.py --package dist/package --tool "$tool" --output-dir dist/artifacts
+          uv run python tools/make_distribution.py --package dist/package --tool "$tool" --output-dir dist/artifacts
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ReShadowTower-${{ matrix.platform }}

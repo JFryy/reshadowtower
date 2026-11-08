@@ -28,7 +28,7 @@ def _c_string(source: str, name: str) -> str:
         raise AssertionError(f"generated renderer has no {name}")
     # GLSL strings contain semicolons; find the C initializer's final string.
     tail = source[declaration.end():]
-    end = re.search(r'^\s*"(?:\\.|[^"\\])*";\s*$', tail, re.M)
+    end = re.search(r'^\s*"(?:\\.|[^"\\])*";\s*$', tail, re.MULTILINE)
     if not end:
         raise AssertionError(f"generated renderer has unterminated {name}")
     tokens = re.findall(r'"(?:\\.|[^"\\])*"', tail[:end.end()])
@@ -44,7 +44,7 @@ class WorldTextureFilterGL(unittest.TestCase):
     def setUpClass(cls):
         try:
             from OpenGL import GL
-        except Exception as exc:
+        except ImportError as exc:
             raise unittest.SkipTest(f"PyOpenGL unavailable: {exc}")
         library = ctypes.util.find_library("SDL3")
         if not library:

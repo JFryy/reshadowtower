@@ -93,7 +93,6 @@ On Linux, `$XDG_DATA_HOME` replaces `~/.local/share` when set.
   regenerate the affected patches (the `# source-sha256:` line and hunks) and run
   `tests/test_source_adapters.py`. Do not rely on changes that exist only in a
   local `PSXRECOMP_ROOT` override.
-- For how the pieces fit together, see [docs/architecture.md](docs/architecture.md).
 
 ## License
 

@@ -1,11 +1,11 @@
 import hashlib
 import io
 import os
-from pathlib import Path
 import sys
 import tarfile
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
@@ -40,9 +40,9 @@ class DependencyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory).resolve()
             with mock.patch.dict(os.environ, {"PSXRECOMP_ROOT": str(source)}), \
-                 mock.patch.object(dependencies.subprocess, "run") as run:
-                with self.assertRaisesRegex(ValueError, "missing runtime/runtime.cmake"):
-                    dependencies.framework_root(source)
+                 mock.patch.object(dependencies.subprocess, "run") as run, \
+                 self.assertRaisesRegex(ValueError, "missing runtime/runtime.cmake"):
+                dependencies.framework_root(source)
             run.assert_not_called()
 
     def test_bundled_release_sources_are_offline(self):
@@ -101,17 +101,17 @@ class DependencyTests(unittest.TestCase):
             project = Path(directory).resolve()
             pin = self.write_inventory_archive(project, ("source/runtime/source.c",))
             pin["sha256"] = "0" * 64
-            with mock.patch.object(dependencies, "dependency_pins", return_value=[pin]):
-                with self.assertRaisesRegex(ValueError, "checksum mismatch"):
-                    dependencies.framework_inventory(project)
+            with mock.patch.object(dependencies, "dependency_pins", return_value=[pin]), \
+                 self.assertRaisesRegex(ValueError, "checksum mismatch"):
+                dependencies.framework_inventory(project)
 
     def test_inventory_rejects_unsafe_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory).resolve()
             pin = self.write_inventory_archive(project, ("source/../../private",))
-            with mock.patch.object(dependencies, "dependency_pins", return_value=[pin]):
-                with self.assertRaisesRegex(ValueError, "Unsafe dependency archive path"):
-                    dependencies.framework_inventory(project)
+            with mock.patch.object(dependencies, "dependency_pins", return_value=[pin]), \
+                 self.assertRaisesRegex(ValueError, "Unsafe dependency archive path"):
+                dependencies.framework_inventory(project)
 
 
 if __name__ == "__main__":

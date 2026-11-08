@@ -1,6 +1,5 @@
 import difflib
 import hashlib
-from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -8,6 +7,7 @@ import sys
 import tempfile
 import tomllib
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -56,7 +56,7 @@ class SourceAdapterTests(unittest.TestCase):
         patched = apply_patch(source, (ROOT / "patches/runtime-widescreen.patch").read_text())
         functions = []
         for name in ("shadowtower_menu_active", "ws_game_mode"):
-            match = re.search(r"static int " + name + r"\(void\) \{.*?\n\}", patched, re.S)
+            match = re.search(r"static int " + name + r"\(void\) \{.*?\n\}", patched, re.DOTALL)
             self.assertIsNotNone(match)
             functions.append(match.group())
         program = r'''

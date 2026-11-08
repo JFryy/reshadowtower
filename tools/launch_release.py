@@ -2,17 +2,17 @@
 """Launch a package from an isolated per-release workspace, preserving shared saves."""
 from __future__ import annotations
 
-from contextlib import contextmanager
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import traceback
 from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 from typing import TextIO
 
 # Isolated Python excludes the script directory; load only our packaged helpers.
@@ -168,7 +168,7 @@ def run_launcher(package: Path, workspace: Path, env: dict[str, str],
         [str(executable), "--python", env["RETCOMM_PYTHON"],
          "--backend", str(workspace / "tools/launcher_backend.py"),
          "--workspace", str(workspace)],
-        cwd=workspace, env=env, stdout=log, stderr=subprocess.STDOUT,
+        cwd=workspace, env=env, stdout=log, stderr=subprocess.STDOUT, check=False,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
     )
 
@@ -186,7 +186,7 @@ def main() -> int:
                 if completed.returncode:
                     raise RuntimeError(f"The game or setup exited with code {completed.returncode}.")
                 return 0
-        except Exception as error:
+        except (OSError, RuntimeError, ValueError, KeyError) as error:
             traceback.print_exc(file=log)
             reason = ("Could not copy the bundled files. Check free disk space and write permissions, then retry."
                       if isinstance(error, shutil.Error) else str(error))

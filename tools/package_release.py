@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterator
 import hashlib
 import json
 import re
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
+from pathlib import Path
 
 import build_bundled_sdl
 import dependencies

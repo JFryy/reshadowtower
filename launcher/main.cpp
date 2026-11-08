@@ -626,7 +626,7 @@ int main(int argc, char** argv) {
     }
     {
         ActionRunner runner(python, backend, workspace);
-        SetupProgress progress{workspacePath / "launcher-process.log"};
+        SetupProgress progress{workspacePath / "launcher-process.log", 0, 0, {}};
         const auto start = [&](const std::string& action, std::vector<std::string> args = {}) {
             if (action == "setup") progress.begin();
             runner.start(action, settings, bindings, std::move(args));

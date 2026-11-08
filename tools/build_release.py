@@ -5,13 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import platform
 import subprocess
 import sys
+from pathlib import Path
 
-import bundled_toolchain
 import build_bundled_sdl
+import bundled_toolchain
 import dependencies
 import package_release
 from release_common import file_hash

@@ -37,14 +37,14 @@ def extract(source: str, name: str, includes: Path) -> str:
     if not declaration:
         raise ValueError(f"patched renderer has no {name}")
     tail = source[declaration.end():]
-    end = re.search(r'^\s*' + LITERAL + r';\s*$', tail, re.M)
+    end = re.search(r'^\s*' + LITERAL + r';\s*$', tail, re.MULTILINE)
     if not end:
         raise ValueError(f"patched renderer has unterminated {name}")
     body = tail[:end.end()]
     body = re.sub(r'(?m)^#include "([\w.]+\.inc)"$',
                   lambda m: (includes / m.group(1)).read_text(encoding="utf-8"), body)
     for macro in ("PSX_SCANLINE_UNIFORMS", "PSX_SCANLINE_FUNC"):
-        body = re.sub(r"(?m)^\s*" + macro + r"\s*$", lambda _: _expand_macro(source, macro), body)
+        body = re.sub(r"(?m)^\s*" + macro + r"\s*$", lambda _, macro=macro: _expand_macro(source, macro), body)
     tokens = re.findall(LITERAL, body)
     if not tokens:
         raise ValueError(f"{name} has no string literals")
@@ -66,7 +66,7 @@ def lint(fragments: list[Path] | None = None) -> list[str]:
         for name, stage in SHADERS.items():
             path = work / f"{name.lower()}.{stage}"
             path.write_text(extract(source, name, work), encoding="utf-8")
-            result = subprocess.run([validator, str(path)], capture_output=True, text=True)
+            result = subprocess.run([validator, str(path)], capture_output=True, text=True, check=False)
             if result.returncode:
                 failures.append(f"{name}:\n{(result.stdout + result.stderr).strip()}")
             reports.append(f"{name} ({stage}): {'FAILED' if result.returncode else 'ok'}")

@@ -1,15 +1,15 @@
 """Safety checks for locally supplied toolchain archives."""
 
 import hashlib
-from pathlib import Path
 import stat
 import sys
 import tempfile
 import unittest
 import zipfile
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from bundled_toolchain import extract_verified  # noqa: E402
+from bundled_toolchain import extract_verified
 
 
 class BundledToolchainTests(unittest.TestCase):

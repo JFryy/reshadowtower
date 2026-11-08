@@ -1,9 +1,9 @@
 import io
-from pathlib import Path
 import sys
 import tempfile
-from types import SimpleNamespace
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
@@ -51,9 +51,9 @@ class LauncherBackendTests(unittest.TestCase):
 
     def test_verification_failure_does_not_generate_or_build(self):
         with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=2)) as run, \
-             mock.patch.object(sys, "stdout", new_callable=io.StringIO):
-            with self.assertRaisesRegex(RuntimeError, "Verifying the disc failed.*launcher-actions.log"):
-                backend.setup(self.root, self.disc)
+             mock.patch.object(sys, "stdout", new_callable=io.StringIO), \
+             self.assertRaisesRegex(RuntimeError, "Verifying the disc failed.*launcher-actions.log"):
+            backend.setup(self.root, self.disc)
         self.assertEqual(run.call_count, 1)
 
     def source_checkout(self):
@@ -85,17 +85,17 @@ class LauncherBackendTests(unittest.TestCase):
         ready = self.root / ".build-ready"
         ready.write_text("old build")
         with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=1)), \
-             mock.patch.object(sys, "stdout", new_callable=io.StringIO):
-            with self.assertRaisesRegex(RuntimeError, "Source setup failed.*launcher-actions.log"):
-                backend.setup(self.root, self.disc)
+             mock.patch.object(sys, "stdout", new_callable=io.StringIO), \
+             self.assertRaisesRegex(RuntimeError, "Source setup failed.*launcher-actions.log"):
+            backend.setup(self.root, self.disc)
         self.assertFalse(ready.exists())
 
     def test_source_setup_without_binary_does_not_mark_ready(self):
         self.source_checkout().unlink()
         with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=0)), \
-             mock.patch.object(sys, "stdout", new_callable=io.StringIO):
-            with self.assertRaises(FileNotFoundError):
-                backend.setup(self.root, self.disc)
+             mock.patch.object(sys, "stdout", new_callable=io.StringIO), \
+             self.assertRaises(FileNotFoundError):
+            backend.setup(self.root, self.disc)
         self.assertFalse((self.root / ".build-ready").exists())
 
     def test_source_setup_without_bios_does_not_pass_empty_argument(self):
@@ -108,9 +108,9 @@ class LauncherBackendTests(unittest.TestCase):
         ])
 
     def test_missing_disc_does_not_start_setup(self):
-        with mock.patch.object(backend.subprocess, "run") as run:
-            with self.assertRaises(FileNotFoundError):
-                backend.setup(self.root, self.root / "missing.cue")
+        with mock.patch.object(backend.subprocess, "run") as run, \
+             self.assertRaises(FileNotFoundError):
+            backend.setup(self.root, self.root / "missing.cue")
         run.assert_not_called()
 
     def test_optional_bios_is_passed_only_to_generation(self):

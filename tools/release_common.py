@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-
 OFFLINE_CMAKE_OPTIONS = (
     # Allow extraction of vendored archives, but never fall back to network URLs.
     "-DFETCHCONTENT_FULLY_DISCONNECTED=OFF",

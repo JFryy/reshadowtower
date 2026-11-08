@@ -1,10 +1,10 @@
 import os
-import sys
-from pathlib import Path
 import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -24,7 +24,7 @@ class ModernControlsTests(unittest.TestCase):
                             str(ROOT / "tests/modern_controls_test.c"), "-lm", "-o", str(executable)], check=True)
             for sensitivity, stick_sensitivity, deadzone in (("invalid", "9", "0.95"), ("2", "2", "0.25")):
                 with self.subTest(sensitivity=sensitivity):
-                    result = subprocess.run([str(executable)], capture_output=True, text=True,
+                    result = subprocess.run([str(executable)], capture_output=True, text=True, check=False,
                                             env={**os.environ, "SHADOWTOWER_MOUSE_SENSITIVITY": sensitivity,
                                                  "SHADOWTOWER_STICK_SENSITIVITY": stick_sensitivity,
                                                  "SHADOWTOWER_STICK_DEADZONE": deadzone})

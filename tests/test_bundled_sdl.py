@@ -1,16 +1,15 @@
 """Focused checks for the pinned stock SDL Wayland build."""
 
 import io
-from pathlib import Path
 import sys
 import tarfile
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-import build_bundled_sdl as sdl  # noqa: E402
-
+import build_bundled_sdl as sdl
 
 CACHE_FEATURES = ('SDL_WAYLAND', 'SDL_WAYLAND_LIBDECOR', 'SDL_X11', 'SDL_X11_XINPUT',
                   'SDL_OPENGL', 'SDL_ALSA', 'SDL_PULSEAUDIO', 'SDL_LIBUDEV')
@@ -37,17 +36,17 @@ class BundledSDLTests(unittest.TestCase):
             member.size = len(payload)
             tar.addfile(member, io.BytesIO(payload))
         destination = self.root / 'source'
-        with mock.patch.object(sdl, 'file_hash', return_value='wrong'):
-            with self.assertRaisesRegex(ValueError, 'SHA256'):
-                sdl.extract(archive, destination)
+        with mock.patch.object(sdl, 'file_hash', return_value='wrong'), \
+             self.assertRaisesRegex(ValueError, 'SHA256'):
+            sdl.extract(archive, destination)
         self.assertFalse(destination.exists())
         with mock.patch.object(sdl, 'file_hash', return_value=sdl.SHA256):
             source = sdl.extract(archive, destination)
         self.assertEqual(source, destination / sdl.SDL_DIRECTORY)
         self.assertEqual((source / 'LICENSE.txt').read_bytes(), b'stock source')
-        with mock.patch.object(sdl, 'file_hash', return_value=sdl.SHA256):
-            with self.assertRaises(FileExistsError):
-                sdl.extract(archive, destination)
+        with mock.patch.object(sdl, 'file_hash', return_value=sdl.SHA256), \
+             self.assertRaises(FileExistsError):
+            sdl.extract(archive, destination)
 
     def run_build(self, missing=None):
         output = self.root / 'output'

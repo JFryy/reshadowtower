@@ -6,19 +6,28 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
+import socket
 import subprocess
 import sys
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from game_session import (DEFAULT_DISC, ROOT, clean_environment, launch_command, press, query,  # noqa: E402
-                          reach_gameplay, terminate, wait_for_debug_server)
-
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_DISC = ROOT / "disc/Shadow Tower (USA).cue"
 # Called with (debug port, phase label) after each scenario, while that scenario's
 # executable is still resident. Its return value is stored on the phase record.
 Observer = Callable[[int, str], Any]
+
+
+def query(port: int, command: str, **arguments: Any) -> dict[str, Any]:
+    import debug_client
+
+    result = debug_client.query("127.0.0.1", port, {"id": 1, "cmd": command, **arguments})
+    if not result.get("ok"):
+        raise RuntimeError(f"{command} failed: {result}")
+    return result
 
 
 def snapshot(port: int, window: int) -> dict[str, Any]:
@@ -73,6 +82,13 @@ def summarize(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def press(port: int, button: int) -> None:
+    query(port, "set_input", buttons=0xFFFF ^ button)
+    time.sleep(0.15)
+    query(port, "clear_input")
+    time.sleep(0.6)
+
+
 def run_trial(out: Path, port: int, window: int, renderer: str, binary: Path,
               trace_boot: bool, disc: Path = DEFAULT_DISC,
               observe: Observer | None = None, game: Path = ROOT / "game.toml",
@@ -80,19 +96,36 @@ def run_trial(out: Path, port: int, window: int, renderer: str, binary: Path,
     """Run one cold boot and a fixed sequence of first-room input scenarios."""
     out.mkdir(parents=True, exist_ok=False)
     # Prevent external diagnostic/performance overrides from contaminating a trial.
-    overrides = dict(env_overrides or {})
+    removed = {k: v for k, v in os.environ.items() if k.startswith(("PSX_", "SHADOWTOWER_"))}
+    env = {k: v for k, v in os.environ.items() if k not in removed}
     if trace_boot:
         # Count generated boot-loader prologues only, not interpreted entries or BIOS.
-        overrides = {"PSX_FN_FILTER": "0x80010000:0x80010800", **overrides}
-    env, removed = clean_environment(overrides)
-    command = launch_command(binary, disc, port, out, renderer, game)
+        env["PSX_FN_FILTER"] = "0x80010000:0x80010800"
+    env.update(env_overrides or {})
+    command = [str(binary),
+               "--game", str(game),
+               "--disc", str(disc),
+               "--no-launcher", "--renderer", renderer,
+               "--debug-port", str(port), "--memcard-dir", str(out / "saves")]
+    if renderer == "software":
+        command.append("--headless")
     record: dict[str, Any] = {"command": command, "removed_overrides": removed,
                               "trace_boot": trace_boot, "phases": []}
     (out / "launch.json").write_text(json.dumps(record, indent=2) + "\n")
     with (out / "runtime.log").open("w") as log:
         proc = subprocess.Popen(command, cwd=out, env=env, stdout=log, stderr=subprocess.STDOUT)
         try:
-            wait_for_debug_server(proc, port, out / "runtime.log")
+            deadline = time.monotonic() + 20
+            while True:
+                if proc.poll() is not None:
+                    raise RuntimeError(f"Runtime exited {proc.returncode}; see {out / 'runtime.log'}")
+                try:
+                    with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                        break
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(f"Debug server unavailable; see {out / 'runtime.log'}")
+                    time.sleep(0.1)
             record["boot_snapshot"] = snapshot(port, window)
 
             def measure(label: str, held: int = 0) -> None:
@@ -118,7 +151,15 @@ def run_trial(out: Path, port: int, window: int, renderer: str, binary: Path,
                       f"gpu={stats['gpu_share']:.1%}", flush=True)
 
             measure("opening")
-            reach_gameplay(port)
+            for _ in range(20):
+                signature = query(port, "read_ram", addr="80041d4c", len=8)["hex"]
+                if signature == "e8ffbd271d80023c":
+                    break
+                press(port, 0x0008)  # Start: skip intro / title transitions.
+                time.sleep(0.5)
+            else:
+                raise RuntimeError("Gameplay executable not reached after 20 Start presses")
+            time.sleep(4)  # The executable becomes resident before loading finishes.
             record["gameplay_signature"] = query(port, "read_ram", addr="80041d4c", len=8)
             measure("idle")
             measure("turn_right", 0x0020)
@@ -137,8 +178,14 @@ def run_trial(out: Path, port: int, window: int, renderer: str, binary: Path,
             record["boot_entries"] = query(port, "fn_entry_dump", count=128)
         finally:
             # SIGTERM is handled by the runtime. Never touch another instance.
-            if terminate(proc):
-                record["forced_kill"] = True
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+                    record["forced_kill"] = True
             record["exit_code"] = proc.returncode
             (out / "results.json").write_text(json.dumps(record, indent=2) + "\n")
     return record
@@ -163,7 +210,9 @@ def main() -> None:
 
     framework = framework_root()
     sys.path.insert(0, str(framework / "tools"))
-    game_session.ensure_port_free(args.port)
+    # Fail before launching if the port belongs to an existing process.
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", args.port))
     out = args.out.resolve()
     binary = args.binary.resolve()
     out.mkdir(parents=True, exist_ok=False)

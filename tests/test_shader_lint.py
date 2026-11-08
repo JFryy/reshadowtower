@@ -16,7 +16,7 @@ import lint_shaders
 class ShaderLint(unittest.TestCase):
     def test_embedded_shaders_validate(self):
         result = subprocess.run([sys.executable, str(ROOT / "tools/lint_shaders.py")],
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(len(result.stdout.splitlines()), len(lint_shaders.SHADERS))
 

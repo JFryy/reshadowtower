@@ -14,16 +14,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import re
 import shutil
 import socket
 import subprocess
 import sys
-from typing import Any, Callable, Iterable
+from collections.abc import Callable, Iterable
+from pathlib import Path
+from typing import Any
 
-from dependencies import framework_root
 import measure_execution
+from dependencies import framework_root
 from generate_aot import RUNTIME_CAPTURES, address, load_capture_list
 
 ROOT = Path(__file__).resolve().parents[1]

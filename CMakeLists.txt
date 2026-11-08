@@ -3,7 +3,9 @@ project(NativeShadowTower LANGUAGES C CXX)
 
 include(cmake/dependencies.cmake)
 # Upstream defaults to its optional UI; this title always uses its own launcher.
-set(PSX_RECOMP_UI OFF CACHE BOOL "Use the title-owned native launcher" FORCE)
+set(PSX_RECOMP_UI
+    OFF
+    CACHE BOOL "Use the title-owned native launcher" FORCE)
 include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")
 include(cmake/adapters.cmake)
 include(cmake/graphics.cmake)
@@ -11,38 +13,52 @@ include(cmake/input.cmake)
 include(cmake/overrides.cmake)
 include(cmake/saves.cmake)
 
-set(SHADOWTOWER_AOT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/generated/aot/overlays_static.c")
+set(SHADOWTOWER_AOT_SOURCE
+    "${CMAKE_CURRENT_SOURCE_DIR}/generated/aot/overlays_static.c")
 if(NOT EXISTS "${SHADOWTOWER_AOT_SOURCE}")
-    message(FATAL_ERROR "Missing native game modules. Run ./scripts/build.sh to generate them from your disc.")
+  message(FATAL_ERROR "Missing native game modules. "
+                      "Run ./scripts/build.sh to generate them from your disc.")
 endif()
 
-psxrecomp_add_game_runtime(psx-runtime
-    PRELOADED_MODS_DIR NONE
-    WINDOW_TITLE "Shadow Tower Recompiled"
-    DEFAULT_GAME_CONFIG_PATH "game.toml"
-    MAX_PLAYERS 1
-    GAME_OVERLAY_STATIC_C "${SHADOWTOWER_AOT_SOURCE}"
-    GEN_MARKER "generated/SLUS_008.63_dispatch.c"
-    GEN_FULL_GLOB "generated/SLUS_008.63_full_*.c"
-)
+psxrecomp_add_game_runtime(
+  psx-runtime
+  PRELOADED_MODS_DIR
+  NONE
+  WINDOW_TITLE
+  "Shadow Tower Recompiled"
+  DEFAULT_GAME_CONFIG_PATH
+  "game.toml"
+  MAX_PLAYERS
+  1
+  GAME_OVERLAY_STATIC_C
+  "${SHADOWTOWER_AOT_SOURCE}"
+  GEN_MARKER
+  "generated/SLUS_008.63_dispatch.c"
+  GEN_FULL_GLOB
+  "generated/SLUS_008.63_full_*.c")
 
 if(NOT CMAKE_SYSTEM_NAME MATCHES "^(Linux|Windows)$")
-    message(FATAL_ERROR "ReShadowTower currently supports Linux and Windows builds.")
+  message(
+    FATAL_ERROR "ReShadowTower currently supports Linux and Windows builds.")
 endif()
 if(NOT PSX_SDL3)
-    message(FATAL_ERROR "Modern controls require SDL3. Configure with -DPSX_SDL_BACKEND=SDL3.")
+  message(
+    FATAL_ERROR
+      "Modern controls require SDL3. Configure with -DPSX_SDL_BACKEND=SDL3.")
 endif()
 configure_file(config.ini "${CMAKE_CURRENT_BINARY_DIR}/config.ini" COPYONLY)
-target_sources(psx-runtime PRIVATE src/modern_controls.c src/function_overrides.c)
+target_sources(psx-runtime PRIVATE src/modern_controls.c
+                                   src/function_overrides.c)
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    # toml11 uses std::terminate without <exception>; libc++ no longer includes it indirectly.
-    set_property(SOURCE
-        "${PSXRECOMP_ROOT}/runtime/src/text_xlate.cpp"
-        "${PSXRECOMP_ROOT}/runtime/src/mod_packages.cpp"
-        APPEND PROPERTY COMPILE_OPTIONS -include exception)
+  # toml11 uses std::terminate without <exception>; libc++ no longer includes it
+  # indirectly.
+  set_property(
+    SOURCE "${PSXRECOMP_ROOT}/runtime/src/text_xlate.cpp"
+           "${PSXRECOMP_ROOT}/runtime/src/mod_packages.cpp"
+    APPEND
+    PROPERTY COMPILE_OPTIONS -include exception)
 endif()
 # Generated title-local sources retain the framework's private helper includes.
-target_include_directories(psx-runtime PRIVATE
-    "${PSXRECOMP_ROOT}/runtime/src"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src"
-)
+target_include_directories(
+  psx-runtime PRIVATE "${PSXRECOMP_ROOT}/runtime/src"
+                      "${CMAKE_CURRENT_SOURCE_DIR}/src")

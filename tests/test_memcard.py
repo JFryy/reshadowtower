@@ -23,7 +23,7 @@ class MemcardTests(unittest.TestCase):
                             "-o", str(executable)], check=True)
             saves = path / "saves"
             saves.mkdir()
-            result = subprocess.run([str(executable), str(saves)], capture_output=True, text=True)
+            result = subprocess.run([str(executable), str(saves)], capture_output=True, text=True, check=False)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stderr.count("save to card 1 failed"), 1)
             self.assertEqual(result.stderr.count("cannot create"), 1)
