@@ -19,17 +19,29 @@
  
 +#include "triangle_extra.h"
  extern int gte_geometry_correction_enabled(void);
-@@ -3497,4 +3508,17 @@
+@@ -3497,4 +3508,29 @@
   * any widescreen adjustment already applied by the caller. */
 +ShadowtowerTriangleExtra g_shadowtower_triangle_extra;
 +
 +/* Gouraud primitives (GP0 bit 28) keep each vertex colour in the word before
-+ * its position; flat ones use the command word's colour for every vertex. */
++ * its position; flat ones use the command word's colour for every vertex.
++ * Depth comes from the PGXP shadow of each DMA'd position word. */
 +static void publish_triangle_extra(const int idx[3]) {
++    ShadowtowerTriangleExtra *extra = &g_shadowtower_triangle_extra;
 +    const int shaded = (gp0_cmd_buf[0] >> 28) & 1;
-+    for (int i = 0; i < 3; i++)
-+        g_shadowtower_triangle_extra.rgb[i] = gp0_cmd_buf[shaded ? idx[i] - 1 : 0] & 0xFFFFFFu;
-+    g_shadowtower_triangle_extra.valid = 1;
++    extra->has_depth = gp0_cmd_source_addr != 0xFFFFFFFFu;
++    for (int i = 0; i < 3; i++) {
++        const int colour = shaded ? idx[i] - 1 : 0;
++        extra->rgb[i] = gp0_cmd_buf[colour] & 0xFFFFFFu;
++        extra->light[i] = gp0_cmd_source_addr == 0xFFFFFFFFu ? NULL
++            : shadowtower_light_lookup(gp0_cmd_source_addr + (uint32_t)colour * 4u, gp0_cmd_buf[colour]);
++        uint32_t addr = (gp0_cmd_source_addr + (uint32_t)idx[i] * 4u) & 0x1FFFFCu;
++        if (extra->has_depth &&
++            (!gte_precision_load_word(addr, gp0_cmd_buf[idx[i]], NULL, NULL, &extra->sz[i]) ||
++             extra->sz[i] == 0))
++            extra->has_depth = 0;
++    }
++    extra->valid = 1;
 +}
 +
  static void prepare_precise_triangle(int i0, int i1, int i2,
@@ -37,7 +49,7 @@
 +    const int idx[3] = { i0, i1, i2 };
 +    publish_triangle_extra(idx);
      gr_set_perspective_triangle(0, 0.0f, 0.0f, 0.0f);
-@@ -3504,3 +3528,2 @@
+@@ -3504,3 +3540,2 @@
      }
 -    const int idx[3] = { i0, i1, i2 };
      int32_t fx[3], fy[3];

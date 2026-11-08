@@ -16,7 +16,8 @@ sys.path.insert(0, str(ROOT / "tools"))
 from dependencies import framework_root
 from prepare_source import prepare
 
-DEFAULT_FRAGMENTS = [ROOT / "src/world_texture_filter.glsl", ROOT / "src/post_processing.glsl"]
+DEFAULT_FRAGMENTS = [ROOT / "src/world_texture_filter.glsl", ROOT / "src/post_processing.glsl",
+                     ROOT / "src/ambient_occlusion.glsl", ROOT / "src/gte_lighting.glsl"]
 RENDERER = "runtime/src/gpu_gl_renderer.c"
 # Every renderer shader that includes a fragment or shares its program, with its stage.
 SHADERS = {"PRESENT_VS": "vert", "PRESENT_FS": "frag", "INTERP_FS": "frag",

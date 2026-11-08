@@ -58,19 +58,20 @@ typedef int GLint;
 #define GL_RGBA 2
 #define GL_UNSIGNED_BYTE 3
 #define GL_TEXTURE_2D 4
-#define PSXGL_RENDERBUFFER 5
 #define PSXGL_DEPTH24_STENCIL8 6
 #define PSXGL_FRAMEBUFFER 7
+#define PSXGL_DEPTH_STENCIL_ATTACHMENT 8
+#define PSXGL_FRAMEBUFFER_COMPLETE 9
 #define VRAM_W 1024
 #define VRAM_H 512
-static GLuint s_hr_tex, s_scratch_tex, s_hr_rb, s_hr_fbo, s_scratch_fbo;
+static GLuint s_hr_tex, s_scratch_tex, s_hr_depth_tex, s_hr_fbo, s_scratch_fbo;
 static int s_scale, limit, mode, attempts[5], na, next_id, live[256], warnings;
 static char warning[160];
 static GLenum pending;
 static int stage, error_calls;
 static void reset(int m, int cap) {
     memset(live, 0, sizeof live); memset(attempts, 0, sizeof attempts);
-    s_hr_tex = s_scratch_tex = s_hr_rb = s_hr_fbo = s_scratch_fbo = 0;
+    s_hr_tex = s_scratch_tex = s_hr_depth_tex = s_hr_fbo = s_scratch_fbo = 0;
     s_scale = 1; warnings = na = 0; next_id = 0; pending = 0;
     stage = error_calls = 0; mode = m; limit = cap; warning[0] = 0;
 }
@@ -81,17 +82,11 @@ static GLenum glGetError(void) { ++error_calls; GLenum e = pending; pending = 0;
 static GLuint make_tex(GLenum a, int w, int h, GLenum b, GLenum c) {
     (void)a; (void)h; (void)b; (void)c;
     if (stage == 0) { attempts[na++] = w / VRAM_W; stage = 1; }
-    else stage = 2;
+    else stage++;
     GLuint id = alloc();
-    if (w == 8192 && ((mode == 1 && stage == 1) || (mode == 2 && stage == 2))) pending = 0x505;
+    if (w == 8192 && mode == stage && mode <= 3) pending = 0x505;
     if (mode == 5) pending = 0x505;
     return id;
-}
-static void p_glGenRenderbuffers(int n, GLuint *id) { assert(n == 1); *id = alloc(); }
-static void p_glBindRenderbuffer(GLenum t, GLuint id) { (void)t; (void)id; }
-static void p_glRenderbufferStorage(GLenum t, GLenum f, int w, int h) {
-    (void)t; (void)f; (void)h;
-    if (w == 8192 && mode == 3) pending = 0x505;
 }
 static int make_fbo(GLuint *id, GLuint tex, GLuint depth) {
     (void)tex; (void)depth; *id = alloc();
@@ -99,8 +94,13 @@ static int make_fbo(GLuint *id, GLuint tex, GLuint depth) {
     return 1;
 }
 static void p_glBindFramebuffer(GLenum t, GLuint id) { (void)t; (void)id; stage = 0; }
+static void p_glFramebufferTexture2D(GLenum t, GLenum a, GLenum k, GLuint id, int level) {
+    (void)t; (void)a; (void)k; (void)level; assert(live[id]);
+}
+static GLenum p_glCheckFramebufferStatus(GLenum t) {
+    (void)t; return mode == 6 && attempts[na-1] == 8 ? 0 : PSXGL_FRAMEBUFFER_COMPLETE;
+}
 static void p_glDeleteFramebuffers(int n, const GLuint *id) { assert(n == 1); drop(*id); }
-static void p_glDeleteRenderbuffers(int n, const GLuint *id) { assert(n == 1); drop(*id); }
 static void glBindTexture(GLenum t, GLuint id) { (void)t; (void)id; }
 static void glDeleteTextures(int n, const GLuint *id) { assert(n == 1); drop(*id); }
 static void host_osd_push(const char *s, int ms) {
@@ -109,7 +109,7 @@ static void host_osd_push(const char *s, int ms) {
 #include "render_scale_gl.h"
 static void check_live(int success) {
     for (int i = 1; i <= next_id; ++i) {
-        int expected = success && (i == s_hr_tex || i == s_scratch_tex || i == s_hr_rb ||
+        int expected = success && (i == s_hr_tex || i == s_scratch_tex || i == s_hr_depth_tex ||
                                       i == s_hr_fbo || i == s_scratch_fbo);
         assert(live[i] == expected);
     }
@@ -120,7 +120,8 @@ int main(void) {
     reset(0, 4096); assert(shadowtower_allocate_render_targets(8));
     assert(s_scale == 4 && na == 1 && attempts[0] == 4 && warnings == 1);
     assert(strstr(warning, "8x") && strstr(warning, "4x")); check_live(1);
-    for (int mode = 1; mode <= 4; ++mode) {
+    for (int mode = 1; mode <= 6; ++mode) {
+        if (mode == 5) continue;
         reset(mode, 8192); assert(shadowtower_allocate_render_targets(8));
         assert(s_scale == 4 && na == 2 && attempts[0] == 8 && attempts[1] == 4);
         assert(warnings == 1 && strstr(warning, "4x")); check_live(1);

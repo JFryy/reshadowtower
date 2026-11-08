@@ -19,14 +19,16 @@ int main() {
         auto s = launcher::load(root);
         require(!s.widescreen && s.wideRatio == 0 && s.scale == 3 && s.volume == 35);
         require(s.vsync && s.lowLatency && s.mouseSensitivity == 1.0 && s.stickSensitivity == 1.0 && s.stickDeadzone == 0.15);
+        require(s.depthBuffer && s.ambientOcclusion && s.pixelLighting && s.smoothFog);
+        require(launcher::gameEnvironment(s)[9].second == "1" && launcher::gameEnvironment(s)[12].second == "1");
         require(!s.outputFiltering && s.fmvFilter == 0 && s.scale == 3 && !s.widescreen);
-        require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::original);
-        require(launcher::gameEnvironment(s)[4].second == "0");
+        require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::subtle);
+        require(launcher::gameEnvironment(s)[4].second.rfind("1,", 0) == 0);
         launcher::applyPostFxPreset(s.postFx, launcher::PostFxPreset::subtle);
         require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::subtle);
         require(s.postFx.enabled && s.postFx.contrast == 1.05f && s.postFx.saturation == .9f &&
-                s.postFx.grain == .015f && s.postFx.dither == .1f && s.postFx.bloom == .08f &&
-                s.postFx.exposure == 0 && s.postFx.scanlines == 0 && s.postFx.mask == 0 && s.postFx.curvature == 0);
+                s.postFx.grain == .008f && s.postFx.dither == .1f && s.postFx.bloom == .08f &&
+                s.postFx.exposure == 0 && s.postFx.scanlines == .08f && s.postFx.mask == 0 && s.postFx.curvature == 0);
         launcher::applyPostFxPreset(s.postFx, launcher::PostFxPreset::crt);
         require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::crt);
         require(s.postFx.enabled && s.postFx.contrast == 1.05f && s.postFx.saturation == 1 &&
@@ -35,6 +37,7 @@ int main() {
         launcher::applyPostFxPreset(s.postFx, launcher::PostFxPreset::original);
         require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::original);
         s.vsync = false; s.lowLatency = false; s.mouseSensitivity = 0.05; s.stickSensitivity = 2.5; s.stickDeadzone = 0.3;
+        s.depthBuffer = false; s.ambientOcclusion = false; s.pixelLighting = false; s.smoothFog = false;
         launcher::applyGraphicsPreset(s, launcher::GraphicsPreset::balanced);
         require(launcher::graphicsPreset(s) == launcher::GraphicsPreset::balanced);
         require(s.scale == 2 && s.filter && s.geometry && !s.perspective);
@@ -52,6 +55,10 @@ int main() {
         require(environment[3].first == "SHADOWTOWER_MOUSE_SENSITIVITY" && environment[3].second == "0.050000");
         require(environment[7].first == "SHADOWTOWER_STICK_SENSITIVITY" && environment[7].second == "2.500000");
         require(environment[8].first == "SHADOWTOWER_STICK_DEADZONE" && environment[8].second == "0.300000");
+        require(environment[9].first == "SHADOWTOWER_DEPTH_BUFFER" && environment[9].second == "0");
+        require(environment[10].first == "SHADOWTOWER_AMBIENT_OCCLUSION" && environment[10].second == "0");
+        require(environment[11].first == "SHADOWTOWER_PIXEL_LIGHTING" && environment[11].second == "0");
+        require(environment[12].first == "SHADOWTOWER_SMOOTH_FOG" && environment[12].second == "0");
         launcher::save(root, s);
         const auto doc = launcher::parse(root / "build-release/settings.toml");
         require(toml::find<int>(doc, "video", "unknown") == 99);
@@ -59,6 +66,10 @@ int main() {
                 launcher::load(root).mouseSensitivity == 0.05);
         require(toml::find<double>(doc, "launcher", "mouse_sensitivity") == 0.05);
         require(launcher::load(root).stickSensitivity == 2.5 && launcher::load(root).stickDeadzone == 0.3);
+        {
+            const auto reloaded = launcher::load(root);
+            require(!reloaded.depthBuffer && !reloaded.ambientOcclusion && !reloaded.pixelLighting && !reloaded.smoothFog);
+        }
         require(toml::find<double>(doc, "launcher", "stick_deadzone") == 0.3);
         require(toml::find<std::string>(doc, "audio", "other") == "kept");
         require(launcher::load(root).widescreen && launcher::load(root).wideRatio == 0 && launcher::load(root).volume == 75);
@@ -131,7 +142,9 @@ int main() {
         std::ofstream(root / "build-release/settings.toml") <<
             "[post_processing]\nenabled = true\nexposure = 3.0\ncontrast = -1.0\nsharpen = 2.0\nunknown = 'kept'\n";
         auto fallback = launcher::load(root);
-        require(fallback.postFx.enabled && fallback.postFx.exposure == 0 && fallback.postFx.contrast == 1);
+        const launcher::PostFx defaults = launcher::Settings{}.postFx;
+        require(fallback.postFx.enabled && fallback.postFx.exposure == defaults.exposure &&
+                fallback.postFx.contrast == defaults.contrast);
         require(!fallback.postFx.fxaa && fallback.postFx.sharpen == 0);
         launcher::save(root, fallback);
         require(toml::find<std::string>(launcher::parse(root / "build-release/settings.toml"),

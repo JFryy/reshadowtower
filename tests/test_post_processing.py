@@ -120,9 +120,12 @@ class PostFxGL(unittest.TestCase):
                 output = Path(directory) / "gpu_gl_renderer.c"
                 prepare(framework_root() / "runtime/src/gpu_gl_renderer.c",
                         ROOT / "patches/runtime-graphics.patch", output,
-                        [ROOT / "src/world_texture_filter.glsl", ROOT / "src/post_processing.glsl"])
-                generated = output.read_text(encoding="utf-8").replace('#include "post_processing.inc"',
-                                                       (output.parent / "post_processing.inc").read_text(encoding="utf-8"))
+                        [ROOT / "src/world_texture_filter.glsl", ROOT / "src/post_processing.glsl",
+                         ROOT / "src/ambient_occlusion.glsl"])
+                generated = output.read_text(encoding="utf-8")
+                for name in ("post_processing", "ambient_occlusion"):
+                    generated = generated.replace(f'#include "{name}.inc"',
+                                                  (output.parent / f"{name}.inc").read_text(encoding="utf-8"))
             for name in ("PSX_SCANLINE_UNIFORMS", "PSX_SCANLINE_FUNC"):
                 replacement = '\n'.join('"' + line.encode('unicode_escape').decode() + '\\n"'
                                         for line in _expand(original, name).splitlines())

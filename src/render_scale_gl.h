@@ -1,6 +1,8 @@
 #pragma once
 
 #define SHADOWTOWER_GL_MAX_RENDERBUFFER_SIZE 0x84E8
+#define SHADOWTOWER_GL_DEPTH_STENCIL 0x84F9
+#define SHADOWTOWER_GL_UNSIGNED_INT_24_8 0x84FA
 
 /* Allocate complete high-resolution targets transactionally, retrying smaller
  * scales without leaving failed textures or framebuffer attachments alive. */
@@ -23,16 +25,19 @@ static int shadowtower_allocate_render_targets(int requested) {
         scratch = make_tex(GL_RGBA8, width, height, GL_RGBA, GL_UNSIGNED_BYTE);
         error = glGetError();
         if (!scratch || error != GL_NO_ERROR) goto failed;
-        p_glGenRenderbuffers(1, &depth);
-        p_glBindRenderbuffer(PSXGL_RENDERBUFFER, depth);
-        p_glRenderbufferStorage(PSXGL_RENDERBUFFER, PSXGL_DEPTH24_STENCIL8, width, height);
+        /* A texture, not a renderbuffer, so ambient occlusion can sample depth. */
+        depth = make_tex(PSXGL_DEPTH24_STENCIL8, width, height, SHADOWTOWER_GL_DEPTH_STENCIL,
+                         SHADOWTOWER_GL_UNSIGNED_INT_24_8);
         error = glGetError();
-        p_glBindRenderbuffer(PSXGL_RENDERBUFFER, 0);
         if (!depth || error != GL_NO_ERROR) goto failed;
-        if (!make_fbo(&frame, color, depth) || !make_fbo(&scratch_frame, scratch, 0)) goto failed;
+        if (!make_fbo(&frame, color, 0) || !make_fbo(&scratch_frame, scratch, 0)) goto failed;
+        p_glBindFramebuffer(PSXGL_FRAMEBUFFER, frame);
+        p_glFramebufferTexture2D(PSXGL_FRAMEBUFFER, PSXGL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, depth, 0);
+        GLenum status = p_glCheckFramebufferStatus(PSXGL_FRAMEBUFFER);
+        p_glBindFramebuffer(PSXGL_FRAMEBUFFER, 0);
         error = glGetError();
-        if (error != GL_NO_ERROR) goto failed;
-        s_hr_tex = color; s_scratch_tex = scratch; s_hr_rb = depth;
+        if (status != PSXGL_FRAMEBUFFER_COMPLETE || error != GL_NO_ERROR) goto failed;
+        s_hr_tex = color; s_scratch_tex = scratch; s_hr_depth_tex = depth;
         s_hr_fbo = frame; s_scratch_fbo = scratch_frame;
         s_scale = scale;
         if (scale != requested) {
@@ -45,11 +50,10 @@ static int shadowtower_allocate_render_targets(int requested) {
     failed:
         fprintf(stderr, "Shadow Tower: %dx GPU targets failed (GL error 0x%X); retrying a lower scale.\n", scale, error);
         p_glBindFramebuffer(PSXGL_FRAMEBUFFER, 0);
-        p_glBindRenderbuffer(PSXGL_RENDERBUFFER, 0);
         glBindTexture(GL_TEXTURE_2D, 0);
         if (frame) p_glDeleteFramebuffers(1, &frame);
         if (scratch_frame) p_glDeleteFramebuffers(1, &scratch_frame);
-        if (depth) p_glDeleteRenderbuffers(1, &depth);
+        if (depth) glDeleteTextures(1, &depth);
         if (color) glDeleteTextures(1, &color);
         if (scratch) glDeleteTextures(1, &scratch);
         for (int count = 0; count < 8; ++count) {

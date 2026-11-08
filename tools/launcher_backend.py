@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,24 @@ def stage_marker(step: int, total: int, label: str) -> str:
     return f"[setup {step}/{total}] {label}"
 
 
+NINJA_STEP = re.compile(r"\[(\d+)/(\d+)\] ")
+
+
+def run_source_build(command: list[str], workspace: Path, log) -> int:
+    """Run build.sh into the log, forwarding its stage markers with ninja's step count."""
+    stage = ""
+    with subprocess.Popen(command, cwd=workspace, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                          text=True, encoding="utf-8", errors="replace") as process:
+        for line in process.stdout:
+            log.write(line)
+            if line.startswith("[setup "):
+                stage = line.rstrip()
+                print(stage, flush=True)
+            elif stage and (step := NINJA_STEP.match(line)):
+                print(f"{stage} ({step[1]}/{step[2]})", flush=True)
+    return process.returncode
+
+
 def setup_source(workspace: Path, disc: Path, bios: Path | None) -> None:
     """Build a source checkout with local tools and record its playable binary."""
     ready = workspace / ".build-ready"
@@ -24,13 +43,12 @@ def setup_source(workspace: Path, disc: Path, bios: Path | None) -> None:
     if bios is not None:
         command.append(str(bios))
     log_path = workspace / "launcher-actions.log"
-    print(stage_marker(1, 1, "Building the game from source"), flush=True)
     with log_path.open("a", encoding="utf-8", buffering=1) as log:
         log.write("\nSource setup: verify disc, generate code, and build game\n")
-        result = subprocess.run(command, cwd=workspace, stdout=log, stderr=subprocess.STDOUT, check=False)
-    if result.returncode:
+        returncode = run_source_build(command, workspace, log)
+    if returncode:
         raise RuntimeError(
-            f"Source setup failed (exit {result.returncode}). Details: {log_path}. "
+            f"Source setup failed (exit {returncode}). Details: {log_path}. "
             "Check the first error for missing build tools or invalid disc data."
         )
     suffix = ".exe" if os.name == "nt" else ""
