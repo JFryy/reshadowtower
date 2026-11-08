@@ -8,12 +8,12 @@ import base64
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import struct
 import subprocess
 import sys
 import tomllib
+from pathlib import Path
 from typing import Any
 
 from dependencies import framework_root
@@ -268,7 +268,7 @@ def run(args: argparse.Namespace) -> int:
     log_path = out_dir / "compile.log"
     with log_path.open("w", encoding="utf-8") as log:
         completed = subprocess.run(
-            compile_command, stdout=log, stderr=subprocess.STDOUT, env=env
+            compile_command, stdout=log, stderr=subprocess.STDOUT, env=env, check=False
         )
     log_text = log_path.read_text(encoding="utf-8", errors="replace")
     results = list(_RESULT_RE.finditer(log_text))

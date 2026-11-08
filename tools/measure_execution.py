@@ -6,12 +6,13 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import socket
 import subprocess
 import sys
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DISC = ROOT / "disc/Shadow Tower (USA).cue"

@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 from release_common import file_hash
+
+
+def stage_marker(step: int, total: int, label: str) -> str:
+    """Format a progress line the launcher parses (launcher::setupStage in launcher/model.hpp)."""
+    return f"[setup {step}/{total}] {label}"
 
 
 def setup_source(workspace: Path, disc: Path, bios: Path | None) -> None:
@@ -19,10 +24,10 @@ def setup_source(workspace: Path, disc: Path, bios: Path | None) -> None:
     if bios is not None:
         command.append(str(bios))
     log_path = workspace / "launcher-actions.log"
-    print("Building the game from source...", flush=True)
+    print(stage_marker(1, 1, "Building the game from source"), flush=True)
     with log_path.open("a", encoding="utf-8", buffering=1) as log:
         log.write("\nSource setup: verify disc, generate code, and build game\n")
-        result = subprocess.run(command, cwd=workspace, stdout=log, stderr=subprocess.STDOUT)
+        result = subprocess.run(command, cwd=workspace, stdout=log, stderr=subprocess.STDOUT, check=False)
     if result.returncode:
         raise RuntimeError(
             f"Source setup failed (exit {result.returncode}). Details: {log_path}. "
@@ -64,11 +69,11 @@ def setup(workspace: Path, disc: Path, bios: Path | None = None) -> None:
     ]
     log_path = workspace / "launcher-actions.log"
     with log_path.open("a", encoding="utf-8", buffering=1) as log:
-        for label, arguments in commands:
-            print(label + "...", flush=True)
+        for step, (label, arguments) in enumerate(commands, 1):
+            print(stage_marker(step, len(commands), label), flush=True)
             log.write("\n" + label + "\n")
             result = subprocess.run([sys.executable, str(cli), *arguments], cwd=workspace,
-                                    stdout=log, stderr=subprocess.STDOUT)
+                                    stdout=log, stderr=subprocess.STDOUT, check=False)
             if result.returncode:
                 raise RuntimeError(f"{label} failed (exit {result.returncode}). Details: {log_path}. Correct the input or reported build error and retry.")
     print("Setup complete. The game is ready to play.", flush=True)

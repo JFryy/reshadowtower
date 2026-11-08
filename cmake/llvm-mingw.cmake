@@ -5,7 +5,9 @@ set(CMAKE_SYSTEM_PROCESSOR x86_64)
 
 file(TO_CMAKE_PATH "$ENV{LLVM_MINGW_ROOT}" _llvm_mingw_root)
 if(NOT EXISTS "${_llvm_mingw_root}/bin/x86_64-w64-mingw32-clang")
-    message(FATAL_ERROR "Set LLVM_MINGW_ROOT to an extracted Linux-host llvm-mingw toolchain.")
+  message(
+    FATAL_ERROR
+      "Set LLVM_MINGW_ROOT to an extracted Linux-host llvm-mingw toolchain.")
 endif()
 set(CMAKE_C_COMPILER "${_llvm_mingw_root}/bin/x86_64-w64-mingw32-clang")
 set(CMAKE_CXX_COMPILER "${_llvm_mingw_root}/bin/x86_64-w64-mingw32-clang++")

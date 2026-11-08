@@ -19,9 +19,12 @@ class FunctionOverrideTests(unittest.TestCase):
                             "-o", str(executable)], check=True)
             for check in ("0", "1", "maybe"):
                 with self.subTest(check=check):
-                    result = subprocess.run([str(executable)], capture_output=True, text=True,
+                    result = subprocess.run([str(executable)], capture_output=True, text=True, check=False,
                                             env={**os.environ, "SHADOWTOWER_OVERRIDE_CHECK": check})
                     self.assertEqual(result.returncode, 0, result.stderr)
+                    for reason in ("'(null)': missing id", "'a': address 0", "'a': missing fingerprint",
+                                   "'a': missing function", "'add': duplicate id"):
+                        self.assertIn(f"cannot register override {reason}", result.stderr)
                     if check == "1":
                         self.assertIn("override wrong (0x80004000) differs from generated code", result.stderr)
                         self.assertIn("r2: generated 0x00000005, override 0x00000007", result.stderr)

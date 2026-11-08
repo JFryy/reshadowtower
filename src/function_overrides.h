@@ -26,7 +26,7 @@ typedef void (*ShadowTowerOverrideFn)(struct CPUState *cpu);
  * resident. The address must also be listed in game.toml under
  * [data_shards] funcs, which makes the recompiler emit the entry check that
  * patches/runtime-overrides.patch routes here. Returns 0 on invalid arguments,
- * a full registry, or a duplicate id. Register from a PSX_MOD_CONSTRUCTOR.
+ * a full registry, or a duplicate id, and logs the reason to stderr. Register from a PSX_MOD_CONSTRUCTOR.
  *
  * With SHADOWTOWER_OVERRIDE_CHECK=1 each call runs the override and then the
  * generated code from the same CPU, RAM and scratchpad state, keeps the

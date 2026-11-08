@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 from release_common import OFFLINE_CMAKE_OPTIONS, file_hash
 
@@ -47,7 +47,7 @@ def main() -> int:
         if args[0] in ("generate", "rebuild"):
             ready.unlink(missing_ok=True)
         completed = subprocess.run(
-            [sys.executable, str(ROOT / "psxrecomp/psxrecomp_cli.py"), *args], cwd=ROOT,
+            [sys.executable, str(ROOT / "psxrecomp/psxrecomp_cli.py"), *args], cwd=ROOT, check=False,
         )
         if completed.returncode:
             return completed.returncode
@@ -61,7 +61,7 @@ def main() -> int:
         if args[0] == "generate":
             print(json.dumps({"event": "phase", "phase": "aot", "pct": 0.8,
                               "message": "Generating the remaining game modules..."}), flush=True)
-            return subprocess.run([sys.executable, str(ROOT / "tools/generate_aot.py")], cwd=ROOT).returncode
+            return subprocess.run([sys.executable, str(ROOT / "tools/generate_aot.py")], cwd=ROOT, check=False).returncode
         return 0
     except (OSError, KeyError, ValueError) as error:
         print(f"ReShadowTower setup failed: {error}", file=sys.stderr)

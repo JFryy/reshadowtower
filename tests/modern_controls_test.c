@@ -24,7 +24,7 @@ SDL_JoystickID *SDL_GetGamepads(int *count) {
 }
 SDL_Gamepad *SDL_GetGamepadFromID(SDL_JoystickID id) { return gamepad_open && id == 7 ? (SDL_Gamepad *)&gamepad_token : NULL; }
 Sint16 SDL_GetGamepadAxis(SDL_Gamepad *g, SDL_GamepadAxis a) { (void)g; return a == SDL_GAMEPAD_AXIS_RIGHTX ? rx : a == SDL_GAMEPAD_AXIS_RIGHTY ? ry : 0; }
-void SDL_free(void *p) { free(p); }
+void SDL_free(void *p) { if (p) free(p); }
 Uint64 SDL_GetTicks(void) { return ticks; }
 SDL_Window *SDL_GetKeyboardFocus(void) { return focus; }
 unsigned int SDL_GetMouseState(float *x, float *y) { if (x) *x=0; if (y) *y=0; return mb; }
@@ -35,17 +35,20 @@ const char *SDL_GetError(void) { return "fake"; }
 bool SDL_SetHint(const char *a, const char *b) { (void)a; (void)b; return true; }
 bool SDL_PollEvent(SDL_Event *e) { if (!event_available) return false; *e=event_value; event_available=false; return true; }
 uint16_t psx_keybinds_pad_word(const uint8_t *keys, int p) { pad_player=p; memcpy(pad_keys, keys, sizeof pad_keys); return pad_value; }
-uint32_t psx_mod_read_word(uint32_t a) { if (a==0x80041D4c) return 0x27BDFFE8; if (a==0x80041D50) return 0x3C02801D; if (a==0x80041EA4) return 0xA4C3027A; if (a==0x80042088) return 0xA6020278; return 0; }
+int wrong_code;
+uint32_t psx_mod_read_word(uint32_t a) { if (wrong_code && a==0x80041EA4) return 0xDEADBEEF; if (a==0x80041D4c) return 0x27BDFFE8; if (a==0x80041D50) return 0x3C02801D; if (a==0x80041EA4) return 0xA4C3027A; if (a==0x80042088) return 0xA6020278; return 0; }
 uint16_t psx_mod_read_half(uint32_t a) { return mem[(a-0x801991A0)/2]; }
 void psx_mod_write_half(uint32_t a, uint16_t v) { mem[(a-0x801991A0)/2]=v; }
-bool psx_mod_register_function_entry_plugin(const char*a,uint32_t b,void(*c)(CPUState*,uint32_t)) { return true; }
+bool psx_mod_register_function_entry_plugin(const char*a,uint32_t b,void(*c)(CPUState*,uint32_t)) { (void)a; (void)b; (void)c; return true; }
 #define PSX_MOD_CONSTRUCTOR(x) static void x(void) __attribute__((constructor)); static void x(void)
 #include "modern_controls.c"
 #define T(x) do { if (!(x)) { fprintf(stderr, "FAIL: %s\n", #x); return 1; } } while (0)
 static uint16_t poll(uint8_t *k, int p) { return shadowtower_pad_word(k,p); }
 int main(void) {
     uint8_t keys[SDL_NUM_SCANCODES] = {0};
-    const int custom = strcmp(getenv("SHADOWTOWER_MOUSE_SENSITIVITY"), "2") == 0;
+    const char *sensitivity_env = getenv("SHADOWTOWER_MOUSE_SENSITIVITY");
+    T(sensitivity_env != NULL);
+    const int custom = strcmp(sensitivity_env, "2") == 0;
     const float expected_sensitivity = custom ? 2.0f : 1.0f;
     T(mouse_sensitivity == expected_sensitivity);
     T(stick_sensitivity == (custom ? 2.0f : 1.0f));
@@ -214,5 +217,15 @@ int main(void) {
     ticks += 16;
     poll(keys, 1);
     T(fabsf(pending_x - (2 * full_step + 10 * mouse_sensitivity)) < 0.01f);
+
+    /* A foreign executable at the hook addresses disables look and logs once. */
+    wrong_code = 1;
+    pending_x = 5;
+    last_look = 0;
+    update_camera(NULL, 0);
+    update_camera(NULL, 0);
+    T(last_look == 0 && pending_x == 5);
+    last_look = ticks;
+    poll(keys, 1);
     return 0;
 }

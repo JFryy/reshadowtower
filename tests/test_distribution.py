@@ -1,16 +1,16 @@
 import json
-from pathlib import Path
 import re
 import sys
 import tempfile
-from types import SimpleNamespace
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import build_bundled_sdl
-import package_release
 import dependencies
+import package_release
 
 
 class DistributionTests(unittest.TestCase):
@@ -44,9 +44,9 @@ class DistributionTests(unittest.TestCase):
             metadata["imgui"] = package_release.imgui_hashes(imgui)
             (build / "release-build.json").write_text(json.dumps(metadata))
             args = SimpleNamespace(build=build, emitters=emitters, platform="linux-x64")
-            with mock.patch.object(package_release, "source_fingerprint", return_value="changed"):
-                with self.assertRaisesRegex(ValueError, "Sources changed"):
-                    package_release.validate_build(args)
+            with mock.patch.object(package_release, "source_fingerprint", return_value="changed"), \
+                 self.assertRaisesRegex(ValueError, "Sources changed"):
+                package_release.validate_build(args)
             with mock.patch.object(package_release, "source_fingerprint", return_value="original"):
                 package_release.validate_build(args)
                 paths["psxrecomp-game"].write_bytes(b"different binary")
@@ -115,18 +115,18 @@ class DistributionTests(unittest.TestCase):
             self.assertNotEqual(first, package_release.source_fingerprint(relocated))
             linked_source = relocated / "recompiler/tests/test.cpp"
             with mock.patch.object(Path, "is_symlink", autospec=True,
-                                   side_effect=lambda path: path == linked_source):
-                with self.assertRaisesRegex(ValueError, "symlink"):
-                    list(package_release.framework_sources(relocated))
+                                   side_effect=lambda path: path == linked_source), \
+                 self.assertRaisesRegex(ValueError, "symlink"):
+                list(package_release.framework_sources(relocated))
 
     def test_dependency_pins_must_match_build(self):
         with tempfile.TemporaryDirectory() as directory:
             build = Path(directory).resolve()
             (build / "release-build.json").write_text(json.dumps({
                 "source_fingerprint": "original", "dependency_pins": []}))
-            with mock.patch.object(package_release, "source_fingerprint", return_value="original"):
-                with self.assertRaisesRegex(ValueError, "Dependency pins"):
-                    package_release.validate_build(SimpleNamespace(build=build))
+            with mock.patch.object(package_release, "source_fingerprint", return_value="original"), \
+                 self.assertRaisesRegex(ValueError, "Dependency pins"):
+                package_release.validate_build(SimpleNamespace(build=build))
 
     def test_launcher_keeps_fixed_cover_and_retro_font(self):
         root = package_release.ROOT
@@ -141,7 +141,9 @@ class DistributionTests(unittest.TestCase):
         root = package_release.ROOT
         self.assertFalse((root / ".gitmodules").exists())
         cmake = (root / "CMakeLists.txt").read_text()
-        disable = cmake.index("set(PSX_RECOMP_UI OFF CACHE BOOL")
+        match = re.search(r"set\(\s*PSX_RECOMP_UI\s+OFF\s+CACHE\s+BOOL", cmake)
+        self.assertIsNotNone(match)
+        disable = match.start()
         upstream = cmake.index('include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")')
         self.assertLess(disable, upstream)
         self.assertNotIn("cmake/setup.cmake", cmake)
@@ -151,7 +153,7 @@ class DistributionTests(unittest.TestCase):
     def test_release_packages_every_build_input(self):
         root = package_release.ROOT
         packaged = set(package_release.PROJECT_FILES)
-        included = re.findall(r"^include\((cmake/[^)]+\.cmake)\)", (root / "CMakeLists.txt").read_text(), re.M)
+        included = re.findall(r"^include\((cmake/[^)]+\.cmake)\)", (root / "CMakeLists.txt").read_text(), re.MULTILINE)
         self.assertTrue(included)
         expected = set(included)
         expected |= {path.relative_to(root).as_posix() for path in (root / "patches").glob("*.patch")}

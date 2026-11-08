@@ -1,6 +1,7 @@
 # Prepare the framework's source fingerprint before offline AOT generation.
 if(NOT PSXRECOMP_ROOT)
-    message(FATAL_ERROR "PSXRECOMP_ROOT is required to generate the codegen hash.")
+  message(
+    FATAL_ERROR "PSXRECOMP_ROOT is required to generate the codegen hash.")
 endif()
 set(PSXRECOMP_CODEGEN_HASH_ROOT "${PSXRECOMP_ROOT}")
 include("${PSXRECOMP_ROOT}/runtime/codegen_hash_sources.cmake")

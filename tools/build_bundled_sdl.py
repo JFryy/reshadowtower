@@ -5,11 +5,11 @@ from __future__ import annotations
 import argparse
 import io
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import tarfile
 import urllib.request
+from pathlib import Path
 
 from release_common import file_hash, file_hashes
 

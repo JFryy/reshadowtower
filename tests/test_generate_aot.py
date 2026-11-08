@@ -2,11 +2,11 @@ import base64
 import io
 import json
 import os
-from pathlib import Path
 import struct
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 

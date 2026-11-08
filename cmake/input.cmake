@@ -1,4 +1,6 @@
 set(SHADOWTOWER_MAIN_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/input/main.cpp")
-shadowtower_prepare("${SHADOWTOWER_MAIN_SOURCE}" "${PSXRECOMP_ROOT}/runtime/src/main.cpp" runtime-input)
-list(REMOVE_ITEM PSXRECOMP_RUNTIME_SOURCES "${PSXRECOMP_ROOT}/runtime/src/main.cpp")
+shadowtower_prepare("${SHADOWTOWER_MAIN_SOURCE}"
+                    "${PSXRECOMP_ROOT}/runtime/src/main.cpp" runtime-input)
+list(REMOVE_ITEM PSXRECOMP_RUNTIME_SOURCES
+     "${PSXRECOMP_ROOT}/runtime/src/main.cpp")
 list(APPEND PSXRECOMP_RUNTIME_SOURCES "${SHADOWTOWER_MAIN_SOURCE}")

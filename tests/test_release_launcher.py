@@ -1,13 +1,12 @@
 import hashlib
 import io
 import json
-from pathlib import Path
 import sys
 import tempfile
 import types
 import unittest
+from pathlib import Path
 from unittest import mock
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -86,10 +85,10 @@ class ReleaseLauncherTests(unittest.TestCase):
 
     def test_session_lock_prevents_concurrent_launches(self):
         data = self.root
-        with launcher.session_lock(data):
-            with self.assertRaisesRegex(RuntimeError, "already running"):
-                with launcher.session_lock(data):
-                    self.fail("Second launch acquired the save lock")
+        with launcher.session_lock(data), \
+             self.assertRaisesRegex(RuntimeError, "already running"), \
+             launcher.session_lock(data):
+            self.fail("Second launch acquired the save lock")
         with launcher.session_lock(data):
             pass
 
