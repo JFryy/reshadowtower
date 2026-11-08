@@ -9,33 +9,29 @@
 
 <img src="docs/images/shadow-tower-cover.png" alt="Shadow Tower USA PlayStation cover art" width="320">
 
-An experimental Shadow Tower recompilation for Linux and Windows x64.
-Mouse look, WASD, upscaled rendering, and sharper texture filtering.
+An experimental Shadow Tower recompilation for Linux and Windows x64, with mouse
+and right-stick look, WASD, upscaled rendering, and sharper texture filtering.
+Watch the [gameplay demo](https://www.reddit.com/r/shadowtower/comments/1wkzy54/shadow_tower_native_psx_recomp_demo/).
 
-[gameplay demo](https://www.reddit.com/r/shadowtower/comments/1wkzy54/shadow_tower_native_psx_recomp_demo/).
-
-Requires your own **Shadow Tower (USA), SLUS-00863** BIN/CUE dump. That dump with the
-[UNDUB v1.0 patch](https://archive.org/details/shadow_tower_undub_patch) applied is also accepted.
-No retail BIOS needed. OpenBIOS is included in the build.
-
+You need your own **Shadow Tower (USA), SLUS-00863** BIN/CUE dump. A dump with the
+[UNDUB v1.0 patch](https://archive.org/details/shadow_tower_undub_patch) also works.
+No BIOS needed.
 
 ## Install
 
 Download the Linux AppImage or Windows installer from the
 [releases page](https://github.com/JFryy/reshadowtower/releases).
 
-- **Linux:** make the `.AppImage` executable (`chmod +x ReShadowTower-*.AppImage`), then launch it.
+- **Linux:** `chmod +x ReShadowTower-*.AppImage`, then run it.
 - **Windows:** run the `*-setup.exe` installer, then open ReShadowTower from the Start menu.
 
-On first launch, select your USA disc dump. Setup generates and compiles the game
-locally using bundled tools, with no downloads or MSYS2 required. Keep the disc
-files available. Both platforms require working OpenGL 3.3 drivers.
+On first launch, select your disc dump. The game is then built locally with the
+bundled tools. Keep the disc files where they are. OpenGL 3.3 is required.
 
 ## Build from source
 
 Requires Git, Python 3.11+, CMake 3.20+, Ninja, pkg-config, GCC/G++ with C++20,
-and OpenGL development libraries. Install SDL3 3.4+ or let the build download it
-(with your system's window/audio development packages installed).
+and OpenGL development libraries. SDL3 3.4+ is used if installed, otherwise downloaded.
 
 On Arch Linux:
 
@@ -43,33 +39,19 @@ On Arch Linux:
 sudo pacman -Syu --needed base-devel git python cmake ninja pkgconf sdl3 libglvnd
 ```
 
-For Windows source builds, use [MSYS2 MINGW64](https://www.msys2.org/) with the
-corresponding `mingw-w64-x86_64-*` packages. Native MSYS2 builds remain unverified.
+Windows source builds use [MSYS2 MINGW64](https://www.msys2.org/) and are unverified.
+
+Put your dump in `disc/` as `Shadow Tower (USA).bin` and `Shadow Tower (USA).cue`,
+then:
 
 ```bash
 git clone https://github.com/JFryy/reshadowtower.git
 cd reshadowtower
-```
-
-Place your dump in `disc/` as `Shadow Tower (USA).bin` and
-`Shadow Tower (USA).cue`; the CUE's `FILE` entry must match the BIN filename.
-
-```bash
 ./scripts/build.sh
 ./scripts/run.sh
 ```
 
-The first build needs internet access. CMake fetches checksum-verified framework
-sources into `build-dependencies/`; no Git submodules are needed. To use a complete
-local framework source tree instead, set `PSXRECOMP_ROOT=/path/to/psxrecomp`.
-Later launches use `./scripts/run.sh`. Output is in `build-release/`; do not share
-that directory between Linux and Windows.
-
-Builds compile generated game code and OpenBIOS ahead of time, with interpreter
-fallback for unsupported paths. Not every gameplay path is verified as native.
-
-To build distributable packages without game data, run the **Offline release
-packages** workflow on your branch. It builds both platforms with pinned tools.
+The first build fetches the pinned framework sources, so it needs internet access.
 
 ## Controls
 
@@ -90,90 +72,36 @@ packages** workflow on your branch. It builds both platforms with pinned tools.
 | Save states | F7 |
 
 Click during gameplay to capture the mouse. The first click won't attack.
-Escape releases it but does not pause. Use E or X to confirm menus, not Enter.
-Equip a shield before using it. Close the window to quit.
+Use E or X to confirm menus, not Enter. Equip a shield before using it.
+Controllers use the original digital-pad controls, plus right-stick look.
 
-Controllers use the original digital-pad controls, with right-stick look.
-
-Set mouse sensitivity at launch (default `1.0`, range `0.05`–`10`):
-
-```bash
-SHADOWTOWER_MOUSE_SENSITIVITY=0.75 ./scripts/run.sh
-```
+Sensitivity is set in the launcher. For source builds, use
+`SHADOWTOWER_MOUSE_SENSITIVITY=0.75 ./scripts/run.sh`.
 
 ## Saves
 
-Save at the game's headstones. Memory cards are `card1.mcd` and `card2.mcd` in:
+Save at the game's headstones. Memory cards (`card1.mcd`, `card2.mcd`) are in:
 
-- **Linux package:** `$XDG_DATA_HOME/reshadowtower/saves` (default `~/.local/share/reshadowtower/saves`).
-- **Windows package:** `%LOCALAPPDATA%\ReShadowTower\saves`.
-- **Source build:** `saves/` in the repository.
+- **Linux:** `~/.local/share/reshadowtower/saves` (or `$XDG_DATA_HOME/reshadowtower/saves`)
+- **Windows:** `%LOCALAPPDATA%\ReShadowTower\saves`
+- **Source build:** `saves/`
 
-For save states: **F7**, choose a slot, **S** to save, **L** to load.
-States may break between builds.
-Keep normal game saves too.
-
-Back up your saves directory with the game closed. Don't run two copies against the same saves.
+Back up saves with the game closed, and don't run two copies at once. Save states
+(F7, then S to save, L to load) may break between builds, so keep normal saves too.
 
 ## Update
 
-Close the game and back up your saves first. For packaged builds, install the
-new Windows version or launch the new AppImage; packaged releases share saves.
-For source builds:
+Back up your saves, then install the new release. Source builds:
+`git pull --ff-only && ./scripts/build.sh`.
 
-```bash
-git pull --ff-only
-./scripts/build.sh
-```
+## Problems and contributing
 
-Build errors: check the first error for missing development packages. Disc errors:
-check the filenames, CUE entry, and USA release. When reporting a problem, include
-your OS, GPU, and the output of `git rev-parse --short HEAD`.
-
-## Contributions
-
-Contributions are welcome. Please follow these guidelines; see
-[CONTRIBUTING.md](CONTRIBUTING.md) for build, test, and reporting details.
-
-- **Bug reports:** include your OS, GPU/driver, source revision
-  (`git rev-parse --short HEAD`), reproduction steps, and relevant error output.
-  For Windows reports, state whether you tested on native Windows or Wine.
-- **Pull requests:** keep changes focused, explain what changed, and run the
-  [development checks](#development-checks). Describe any manual gameplay tests
-  and remaining validation gaps. Use disposable saves for testing.
-- **Framework changes:** keep PSXRecomp fixes separate from title-specific code.
-  Submit shared fixes upstream and update the verified pins in
-  `cmake/dependencies.json`; do not rely on changes only in a local source override.
-- **Game data:** never submit disc dumps, extracted executables, generated game
-  code, BIOS dumps, memory cards, or save states. Share reproduction steps rather
-  than uploading those files.
-
-## Development checks
-
-The tests need no game disc, BIOS image, or generated game code. Install CMake,
-Ninja, a C compiler, SDL3, and PyOpenGL, then run (the first run fetches the pinned
-framework sources):
-
-```bash
-python3 tools/run_tests.py
-```
-
-For a headless test run:
-
-```bash
-SDL_VIDEODRIVER=x11 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a python3 tools/run_tests.py
-```
-
-Player builds disable debugging tools. To opt in after a normal build:
-
-```bash
-cmake -S . -B build-release -DPSX_DEBUG_TOOLS=ON
-cmake --build build-release --target psx-runtime -j4
-```
-
-Running `./scripts/build.sh` again restores the player default (`OFF`).
+Open an issue with your OS, GPU, `git rev-parse --short HEAD`, and the first error.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for tests (which also need PyOpenGL) and pull requests. Never share disc
+dumps, generated code, or saves.
 
 ## License and credits
+
 This unofficial FromSoftware fan project uses:
 
 - [PSXRecomp](https://github.com/mstan/psxrecomp), under its
@@ -181,4 +109,3 @@ This unofficial FromSoftware fan project uses:
   Its noncommercial restrictions still apply to the framework and combined runtime.
 - [OpenBIOS](https://github.com/mstan/psxrecomp/blob/ed55299be34710a90fc080484a83e8634bd41fa9/bios/OpenBIOS.LICENSE),
   under MIT and its accompanying third-party notices.
-
