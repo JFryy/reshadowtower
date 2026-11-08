@@ -77,7 +77,9 @@ def build(archive: Path, output: Path, sdl_archive: Path | None = None) -> None:
         run([str(cmake), "--build", str(destination), "--parallel", "4", "--target", *targets], env)
 
     emitters = output / "emitters"
-    configure(source / "psxrecomp/recompiler", emitters, ["-DPSXRECOMP_STATIC_CLI=ON"])
+    configure(source / "psxrecomp/recompiler", emitters, [
+        "-DPSXRECOMP_STATIC_CLI=ON",
+        f"-DCMAKE_PROJECT_PSXRecomp_INCLUDE={source / 'cmake/recompiler_overrides.cmake'}"])
     compile(emitters, ["psxrecomp-game", "psxrecomp-bios"])
     host = output / "host"
     if target == "linux-x64":
