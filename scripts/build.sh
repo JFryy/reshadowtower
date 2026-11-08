@@ -19,6 +19,7 @@ if [[ ! -f "$disc" ]]; then
 fi
 # The launcher shows these markers as setup progress (tools/launcher_backend.py).
 stage() { echo "[setup $1/7] $2"; }
+jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 
 stage 1 "Resolving build dependencies"
 PSXRECOMP_ROOT="$(python3 tools/dependencies.py)"
@@ -30,17 +31,17 @@ stage 3 "Building the recompiler"
 cmake -S "$PSXRECOMP_ROOT/recompiler" -B build-recompiler -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DPSXRECOMP_ENABLE_CHD=OFF \
     -DCMAKE_PROJECT_PSXRecomp_INCLUDE="$PWD/cmake/recompiler_overrides.cmake"
-cmake --build build-recompiler --target psxrecomp-game psxrecomp-bios -j4
+cmake --build build-recompiler --target psxrecomp-game psxrecomp-bios -j "$jobs"
 stage 4 "Generating game code"
 python3 "$PSXRECOMP_ROOT/psxrecomp_cli.py" generate \
     --config game.toml --project-root . --disc "$disc" "${bios_args[@]}"
 PSXRECOMP_BIOS_BUILD="$PWD/build-recompiler" \
     "$PSXRECOMP_ROOT/tools/regen_bios.sh" --config bios/OpenBIOS.toml
 stage 5 "Generating overlay code"
-python3 tools/generate_aot.py --jobs 4
+python3 tools/generate_aot.py --jobs "$jobs"
 stage 6 "Configuring the game build"
 cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DPSX_ENABLE_VULKAN=OFF -DPSX_DEBUG_TOOLS=OFF \
     -DPSXRECOMP_ROOT="$PSXRECOMP_ROOT"
 stage 7 "Building the game"
-cmake --build build-release --target psx-runtime -j4
+cmake --build build-release --target psx-runtime -j "$jobs"
