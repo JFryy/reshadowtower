@@ -22,6 +22,7 @@ endif()
 
 psxrecomp_add_game_runtime(
   psx-runtime
+  PGXP
   PRELOADED_MODS_DIR
   NONE
   WINDOW_TITLE
@@ -36,6 +37,15 @@ psxrecomp_add_game_runtime(
   "generated/SLUS_008.63_dispatch.c"
   GEN_FULL_GLOB
   "generated/SLUS_008.63_full_*.c")
+
+# The generated overlay modules are tens of megabytes of C. At the release -O3
+# they dominate the first build, so they trade some speed for build time at -O1.
+file(GLOB SHADOWTOWER_AOT_PARTS CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/generated/aot/overlays_static*.c")
+set_property(
+  SOURCE ${SHADOWTOWER_AOT_PARTS}
+  APPEND
+  PROPERTY COMPILE_OPTIONS -O1)
 
 if(NOT CMAKE_SYSTEM_NAME MATCHES "^(Linux|Windows)$")
   message(

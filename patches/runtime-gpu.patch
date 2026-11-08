@@ -1,0 +1,55 @@
+# source-sha256: 15fd23864309bca1e32da00480c770f0e8d8c303f3eff505563cdc5993edd835
+--- a/psxrecomp/runtime/src/gpu.c
++++ b/psxrecomp/runtime/src/gpu.c
+@@ -333,3 +333,13 @@
+ }
++/* The USA menu routine sets this byte to 1 on entry and 2 on exit.
++ * Confirm its two stores before trusting RAM that another executable may own. */
++static int shadowtower_menu_active(void) {
++    return psx_read_word(0x80042E74u) == 0xA046B6DAu &&
++           psx_read_word(0x8004316Cu) == 0xA062B6DAu &&
++           psx_read_byte(0x8018B6DAu) == 1;
++}
++
+ static int ws_game_mode(void) {
++    /* Do not keep the menu in native-wide during the 45-frame GTE hold. */
++    if (ws_gte_game_mode_cfg && shadowtower_menu_active()) return 0;
+     int state_match = ws_gameplay_state_matches();
+@@ -3462,2 +3472,3 @@
+ 
++#include "triangle_extra.h"
+ extern int gte_geometry_correction_enabled(void);
+@@ -3497,4 +3508,29 @@
+  * any widescreen adjustment already applied by the caller. */
++ShadowtowerTriangleExtra g_shadowtower_triangle_extra;
++
++/* Gouraud primitives (GP0 bit 28) keep each vertex colour in the word before
++ * its position; flat ones use the command word's colour for every vertex.
++ * Depth comes from the PGXP shadow of each DMA'd position word. */
++static void publish_triangle_extra(const int idx[3]) {
++    ShadowtowerTriangleExtra *extra = &g_shadowtower_triangle_extra;
++    const int shaded = (gp0_cmd_buf[0] >> 28) & 1;
++    extra->has_depth = gp0_cmd_source_addr != 0xFFFFFFFFu;
++    for (int i = 0; i < 3; i++) {
++        const int colour = shaded ? idx[i] - 1 : 0;
++        extra->rgb[i] = gp0_cmd_buf[colour] & 0xFFFFFFu;
++        extra->light[i] = gp0_cmd_source_addr == 0xFFFFFFFFu ? NULL
++            : shadowtower_light_lookup(gp0_cmd_source_addr + (uint32_t)colour * 4u, gp0_cmd_buf[colour]);
++        uint32_t addr = (gp0_cmd_source_addr + (uint32_t)idx[i] * 4u) & 0x1FFFFCu;
++        if (extra->has_depth &&
++            (!gte_precision_load_word(addr, gp0_cmd_buf[idx[i]], NULL, NULL, &extra->sz[i]) ||
++             extra->sz[i] == 0))
++            extra->has_depth = 0;
++    }
++    extra->valid = 1;
++}
++
+ static void prepare_precise_triangle(int i0, int i1, int i2,
+                                      const int32_t vx[3], const int32_t vy[3]) {
++    const int idx[3] = { i0, i1, i2 };
++    publish_triangle_extra(idx);
+     gr_set_perspective_triangle(0, 0.0f, 0.0f, 0.0f);
+@@ -3504,3 +3540,2 @@
+     }
+-    const int idx[3] = { i0, i1, i2 };
+     int32_t fx[3], fy[3];

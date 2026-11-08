@@ -10,6 +10,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import launcher_backend as backend
 
 
+class FakeBuild:
+    """Stands in for the build.sh process: yields its output, then exits."""
+
+    def __init__(self, lines, returncode=0):
+        self.stdout = iter(lines)
+        self.returncode = returncode
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
 class LauncherBackendTests(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory(prefix="shadow tower ")
@@ -44,10 +58,13 @@ class LauncherBackendTests(unittest.TestCase):
         self.assertEqual(markers, ["[setup 1/3] Verifying the disc", "[setup 2/3] Generating game code",
                                    "[setup 3/3] Building the game"])
         self.source_checkout()
-        with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=0)), \
+        lines = ["[setup 7/7] Building the game\n", "[3/182] Building C object x.c.o\n", "warning\n"]
+        with mock.patch.object(backend.subprocess, "Popen", return_value=FakeBuild(lines)), \
              mock.patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
             backend.setup(self.root, self.disc)
-        self.assertIn("[setup 1/1] Building the game from source", stdout.getvalue().splitlines())
+        self.assertEqual(stdout.getvalue().splitlines()[:2],
+                         ["[setup 7/7] Building the game", "[setup 7/7] Building the game (3/182)"])
+        self.assertIn("warning", (self.root / "launcher-actions.log").read_text())
 
     def test_verification_failure_does_not_generate_or_build(self):
         with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=2)) as run, \
@@ -70,7 +87,7 @@ class LauncherBackendTests(unittest.TestCase):
         executable = self.source_checkout()
         bios = self.root / "my BIOS.bin"
         bios.touch()
-        with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, \
+        with mock.patch.object(backend.subprocess, "Popen", return_value=FakeBuild([], 0)) as run, \
              mock.patch.object(sys, "stdout", new_callable=io.StringIO):
             backend.setup(self.root, self.disc, bios)
         self.assertEqual(run.call_args.args[0], [
@@ -84,7 +101,7 @@ class LauncherBackendTests(unittest.TestCase):
         self.source_checkout()
         ready = self.root / ".build-ready"
         ready.write_text("old build")
-        with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=1)), \
+        with mock.patch.object(backend.subprocess, "Popen", return_value=FakeBuild([], 1)), \
              mock.patch.object(sys, "stdout", new_callable=io.StringIO), \
              self.assertRaisesRegex(RuntimeError, "Source setup failed.*launcher-actions.log"):
             backend.setup(self.root, self.disc)
@@ -92,7 +109,7 @@ class LauncherBackendTests(unittest.TestCase):
 
     def test_source_setup_without_binary_does_not_mark_ready(self):
         self.source_checkout().unlink()
-        with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=0)), \
+        with mock.patch.object(backend.subprocess, "Popen", return_value=FakeBuild([], 0)), \
              mock.patch.object(sys, "stdout", new_callable=io.StringIO), \
              self.assertRaises(FileNotFoundError):
             backend.setup(self.root, self.disc)
@@ -100,7 +117,7 @@ class LauncherBackendTests(unittest.TestCase):
 
     def test_source_setup_without_bios_does_not_pass_empty_argument(self):
         self.source_checkout()
-        with mock.patch.object(backend.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, \
+        with mock.patch.object(backend.subprocess, "Popen", return_value=FakeBuild([], 0)) as run, \
              mock.patch.object(sys, "stdout", new_callable=io.StringIO):
             backend.setup(self.root, self.disc)
         self.assertEqual(run.call_args.args[0], [

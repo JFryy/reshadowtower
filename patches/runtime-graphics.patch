@@ -1,32 +1,41 @@
 # source-sha256: 2978b43a207210fa6f258b519c3a07360664c31d3490fa9e5583c04e777f18c9
 --- a/psxrecomp/runtime/src/gpu_gl_renderer.c
 +++ b/psxrecomp/runtime/src/gpu_gl_renderer.c
-@@ -130,2 +130,3 @@
+@@ -130,3 +130,5 @@
  #define VRAM_H 512
 -#define GL_MAX_INTERNAL_SCALE 4
 +#include "render_scale.h"
++#include "triangle_extra.h"
 +#define GL_MAX_INTERNAL_SCALE SHADOWTOWER_MAX_INTERNAL_SCALE
-@@ -376,3 +377,3 @@
+ 
+@@ -376,3 +378,3 @@
   * pre-feature pipeline. */
 -#define TEXV 20
-+#define TEXV 21
++#define TEXV 30
  static GLuint s_blit_prog = 0, s_blit_vao = 0, s_blit_vbo = 0;
-@@ -949,4 +950,8 @@
+@@ -423,2 +425,3 @@
+ static int s_tb_gate = 0;
++static int s_tb_z = 0;                       /* batch has PGXP depth */
+ /* ws_backdrop_stretch diagnostics: per-frame snapshot reported by the command. */
+@@ -949,4 +952,9 @@
      PSX_SCANLINE_FUNC
 +    "vec4 postfx_sample(vec2 uv){ return texture(u_tex, uv); }\n"
 +    "ivec2 postfx_size(){ return textureSize(u_tex, 0); }\n"
 +#include "post_processing.inc"
++#include "ambient_occlusion.inc"
      "void main(){\n"
 -    "  vec2 uv = v_uv;\n"
 +    "  vec2 uv = postfx_uv(v_uv);\n"
 +    "  if (postfx_outside(uv)) { frag = vec4(0.0, 0.0, 0.0, 1.0); return; }\n"
      "  vec4 c;\n"
-@@ -969,3 +974,3 @@
+@@ -968,4 +976,5 @@
+     "  }\n"
++    "  c.rgb *= ambient_occlusion(uv);\n"
      "  c.rgb = psx_scanline(c.rgb, v_uv.y);\n"
 -    "  frag = c;\n"
 +    "  frag = postfx_apply(c, uv);\n"
      "}\n";
-@@ -975,6 +980,7 @@
+@@ -975,6 +984,7 @@
      "uniform float u_alpha; uniform int u_blend_mode; out vec4 frag;\n"
 +    "uniform vec4 u_uv_rect;\n"
      PSX_SCANLINE_UNIFORMS
@@ -36,7 +45,7 @@
 +    "vec4 postfx_sample(vec2 uv){\n"
 +    "  vec4 prev=texture(u_prev,uv), curr=texture(u_curr,uv);\n"
      "  float alpha=u_alpha;\n"
-@@ -986,5 +992,12 @@
+@@ -986,5 +996,12 @@
      "  }\n"
 -    "  vec4 c=mix(prev,curr,alpha);\n"
 -    "  c.rgb=psx_scanline(c.rgb, v_uv.y);\n"
@@ -52,24 +61,51 @@
 +    "  c.rgb = psx_scanline(c.rgb, v_uv.y);\n"
 +    "  frag = postfx_apply(c, uv);\n"
      "}\n";
-@@ -1050,2 +1063,4 @@
+@@ -1008,2 +1025,3 @@
+     "layout(location=1) in vec4 a_col;\n"
++    "layout(location=2) in float a_zdepth; /* depth-buffer value; 1 = far */\n"
+     "uniform float u_shift;\n"
+@@ -1021,3 +1039,3 @@
+     "  } else xb = (xb - u_xcenter)*u_xscale + u_xcenter;\n"
+-    "  gl_Position = vec4((xb+u_shift+u_xoff)/u_xhalf - 1.0, (a_pos.y+u_shift)/256.0 - 1.0, 0.0, 1.0); }\n";
++    "  gl_Position = vec4((xb+u_shift+u_xoff)/u_xhalf - 1.0, (a_pos.y+u_shift)/256.0 - 1.0, 2.0 * a_zdepth - 1.0, 1.0); }\n";
+ static const char *GEO_FS =
+@@ -1050,2 +1068,10 @@
      "layout(location=9) in float a_q;   /* persp weight; 0 = affine (default) */\n"
 +    "layout(location=10) in float a_world_filter;\n"
++    "layout(location=11) in float a_zdepth; /* depth-buffer value; 1 = far */\n"
++    "layout(location=12) in vec4 a_light;   /* L*n or colour, lighting context */\n"
++    "layout(location=13) in vec4 a_normal;  /* unit normal, IR0 */\n"
++#include "gte_lighting.inc"
++    "flat out int v_light_context; smooth out vec4 v_light; smooth out vec3 v_normal;\n"
++    "noperspective out vec3 v_lit; noperspective out float v_zdepth;\n"
 +    "flat out int v_world_filter;\n"
      "uniform float u_shift;\n"
-@@ -1062,2 +1077,3 @@
+@@ -1061,3 +1087,7 @@
+     "void main(){ v_uv = a_uv; v_uv_p = a_uv; v_col = a_col;\n"
++    "  v_light_context = int(floor(a_light.w + 0.5)); v_zdepth = a_zdepth;\n"
++    "  v_light = vec4(a_light.xyz, a_normal.w); v_normal = a_normal.xyz;\n"
++    "  v_lit = v_light_context >= 0 ? light_colour(v_light_context, a_light.xyz) : vec3(0.0);\n"
      "  v_persp = (a_q > 0.0) ? 1 : 0;\n"
 +    "  v_world_filter = int(a_world_filter);\n"
      "  v_tpage = ivec2(a_tpage + 0.5); v_clut = ivec2(a_clut + 0.5);\n"
-@@ -1085,2 +1101,3 @@
+@@ -1080,3 +1110,3 @@
+     "  vec2 ndc = vec2((xb+u_shift+u_xoff)/u_xhalf - 1.0, (a_pos.y+u_shift)/256.0 - 1.0);\n"
+-    "  gl_Position = vec4(ndc * w, 0.0, w); }\n";
++    "  gl_Position = vec4(ndc * w, (2.0 * a_zdepth - 1.0) * w, w); }\n";
+ static const char *TEX_FS =
+@@ -1085,2 +1115,6 @@
      "smooth in vec2 v_uv_p; flat in int v_persp;\n"
 +    "flat in int v_world_filter;\n"
++#include "gte_lighting.inc"
++    "flat in int v_light_context; smooth in vec4 v_light; smooth in vec3 v_normal;\n"
++    "noperspective in vec3 v_lit; noperspective in float v_zdepth;\n"
      "out vec4 frag; out vec4 blend_factor;\n"
-@@ -1123,2 +1140,3 @@
+@@ -1123,2 +1157,3 @@
      "}\n"
 +#include "world_texture_filter.inc"
      "void main(){\n"
-@@ -1129,35 +1147,8 @@
+@@ -1129,38 +1164,16 @@
      "  vec2 uv = (v_persp != 0) ? v_uv_p : v_uv;\n"
 -    "  if (u_filter == 0) {\n"
 -    "    int raw = fetch_texel(int(floor(uv.x)), int(floor(uv.y)));\n"
@@ -111,22 +147,249 @@
 +    "  rgb = (u_filter != 0 && v_world_filter != 0)\n"
 +    "      ? world_filter(uv, dx, dy, raw) : col5(raw);\n"
      "  if (u_semipass == 1 && stp == 1) discard;\n"
-@@ -2027,2 +2018,5 @@
+     "  if (u_semipass == 2 && stp == 0) discard;\n"
+-    "  if (v_raw == 0) rgb = clamp(rgb * v_col.rgb * 2.0, 0.0, 1.0);\n"
++    "  vec3 col = v_col.rgb;\n"
++    "  if (v_light_context >= 0) {\n"
++    "    vec3 lit = light_surface(v_light_context, v_light.xyz, v_normal, v_lit);\n"
++    "    col = light_finish(v_light_context, lit, light_fog(v_light_context, v_light.w, v_zdepth));\n"
++    "  }\n"
++    "  if (v_raw == 0) rgb = clamp(rgb * col * 2.0, 0.0, 1.0);\n"
+     "  float dst_factor = 0.0;\n"
+@@ -1262,4 +1275,8 @@
+ /* ---- pixel conversion (PS1 1555: bit15=mask, B[14:10] G[9:5] R[4:0]) ---- */
++/* Bit replication maps 31 to 255, matching the shaders' col5() and the fill
++ * path; PACK's >> 3 still recovers the original 5 bits exactly. */
++static inline uint32_t c5to8(uint32_t c) { return (c << 3) | (c >> 2); }
++static inline float c5tof(uint16_t c, int shift) { return c5to8((c >> shift) & 0x1F) / 255.0f; }
+ static inline uint32_t conv_1555_to_rgba8(uint16_t p) {
+-    uint32_t r = (p & 0x1F) << 3, g = ((p >> 5) & 0x1F) << 3, b = ((p >> 10) & 0x1F) << 3;
++    uint32_t r = c5to8(p & 0x1F), g = c5to8((p >> 5) & 0x1F), b = c5to8((p >> 10) & 0x1F);
+     uint32_t a = (p >> 15) & 1 ? 0xFF : 0;
+@@ -1337,2 +1354,4 @@
+     glDisable(GL_STENCIL_TEST);
++    glDisable(GL_DEPTH_TEST);
++    glDepthMask(GL_TRUE);
+     glDisable(GL_SCISSOR_TEST);
+@@ -1343,2 +1362,5 @@
+ 
++#include "depth_gl.h"
++#include "lighting_gl.h"
++
+ /* ---- coherency: CPU -> GPU upload flush --------------------------------- */
+@@ -1413,2 +1435,3 @@
+         glScissor(x * s_scale, y * s_scale, w * s_scale, h * s_scale);
++        depth_reset_scissored();
+         float fx0 = (float)x, fy0 = (float)y, fx1 = (float)(x + w), fy1 = (float)(y + h);
+@@ -1615,2 +1638,3 @@
+ static void wide_target_begin(int dx, GLint uXoff, GLint uXhalf) {
++    glDisable(GL_DEPTH_TEST);
+     if (s_ws_ablate != 3)   /* ablate 3: no FBO rebind (draws land in hr — perf probe) */
+@@ -1848,2 +1872,3 @@
+     hr_begin(1);
++    depth_state(s_tb_z, semi);
+     p_glUseProgram(s_tex_prog);
+@@ -1855,2 +1880,3 @@
+     p_glUniform1i(s_uFilter, s_tb_filter);
++    lighting_upload(s_tex_prog);
+     p_glBindVertexArray(s_tex_vao);
+@@ -1885,3 +1911,4 @@
+ #define FLATBATCH_MAXV 8190                 /* multiple of 3 */
+-static float s_fb[FLATBATCH_MAXV * 6];
++#define GEOV 7                             /* x y r g b a zdepth */
++static float s_fb[FLATBATCH_MAXV * GEOV];
+ static int   s_fb_n = 0;
+@@ -1889,2 +1916,3 @@
+ static int   s_fb_mask = -1;
++static int   s_fb_z = 0;
+ 
+@@ -1894,3 +1922,3 @@
+     for (int i = 1; i < nverts; i++) {
+-        float x = s_fb[i * 6];
++        float x = s_fb[i * GEOV];
+         if (x < flo) flo = x; if (x > fhi) fhi = x;
+@@ -1909,2 +1937,3 @@
+     mask_stencil(mask);
++    depth_state(s_fb_z, semi);
+     p_glUseProgram(s_geo_prog);
+@@ -1912,3 +1941,3 @@
+     p_glBindBuffer(PSXGL_ARRAY_BUFFER, s_geo_vbo);
+-    p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)(nverts * 6 * sizeof(float)),
++    p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)(nverts * GEOV * sizeof(float)),
+                    s_fb, PSXGL_STREAM_DRAW);
+@@ -1933,5 +1962,15 @@
+ /* Flat / gouraud triangles and lines share the GEO program. mode: GL_TRIANGLES
+- * or GL_LINES; verts are (x, y, r, g, b, a) tuples with colors as 1555. */
++ * or GL_LINES; verts are (x, y, r, g, b, a) tuples with colors as 1555, or as
++ * 24-bit packet colours when rgb24 is given. */
++static void geometry_color(float *v, const uint16_t *cs, const uint32_t *rgb24, int i) {
++    if (rgb24) {
++        v[0] = (rgb24[i] & 0xFF) / 255.0f;
++        v[1] = ((rgb24[i] >> 8) & 0xFF) / 255.0f;
++        v[2] = ((rgb24[i] >> 16) & 0xFF) / 255.0f;
++        return;
++    }
++    v[0] = c5tof(cs[i], 0); v[1] = c5tof(cs[i], 5); v[2] = c5tof(cs[i], 10);
++}
+ static void gpu_geometry(GLenum mode, const int *xs, const int *ys,
+-                         const uint16_t *cs, int n, int semi) {
++                         const uint16_t *cs, const uint32_t *rgb24, int n, int semi) {
+     flush_tex_batch();   /* flat prim: drain textured draws first (order + program) */
+@@ -1941,2 +1980,5 @@
+     const int precise = s_pc_valid && mode == GL_TRIANGLES && n == 3;
++    /* rgb24 is only given from the polygon entry points, which also published depth. */
++    float zdepth[3];
++    const int has_depth = triangle_depth(rgb24 != NULL && n == 3, zdepth);
+ 
+@@ -1945,11 +1987,10 @@
+         flush_flat_batch();
+-        float verts[3 * 6];
++        float verts[3 * GEOV];
+         float mask_a = s_mask_set ? 1.0f : 0.0f;
+         for (int i = 0; i < n; i++) {
+-            verts[i*6+0] = precise ? s_pc_x[i] : (float)xs[i];
+-            verts[i*6+1] = precise ? s_pc_y[i] : (float)ys[i];
+-            verts[i*6+2] = ((cs[i] & 0x1F) << 3) / 255.0f;
+-            verts[i*6+3] = (((cs[i] >> 5) & 0x1F) << 3) / 255.0f;
+-            verts[i*6+4] = (((cs[i] >> 10) & 0x1F) << 3) / 255.0f;
+-            verts[i*6+5] = mask_a;
++            verts[i*GEOV+0] = precise ? s_pc_x[i] : (float)xs[i];
++            verts[i*GEOV+1] = precise ? s_pc_y[i] : (float)ys[i];
++            geometry_color(&verts[i*GEOV+2], cs, rgb24, i);
++            verts[i*GEOV+5] = mask_a;
++            verts[i*GEOV+6] = 1.0f;
+         }
+@@ -1958,2 +1999,3 @@
+         mask_stencil(s_mask_set);
++        depth_state(0, semi);
+         if (mode == GL_LINES) glLineWidth((float)s_scale);
+@@ -1962,3 +2004,3 @@
+         p_glBindBuffer(PSXGL_ARRAY_BUFFER, s_geo_vbo);
+-        p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)(n * 6 * sizeof(float)),
++        p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)(n * GEOV * sizeof(float)),
+                        verts, PSXGL_STREAM_DRAW);
+@@ -1981,3 +2023,3 @@
+ 
+-    if (s_fb_n > 0 && (s_fb_semi != semi || s_fb_mask != (int)s_mask_set))
++    if (s_fb_n > 0 && (s_fb_semi != semi || s_fb_mask != (int)s_mask_set || s_fb_z != has_depth))
+         flush_flat_batch();
+@@ -1987,2 +2029,3 @@
+     s_fb_mask = (int)s_mask_set;
++    s_fb_z = has_depth;
+ 
+@@ -1990,9 +2033,8 @@
+     for (int i = 0; i < n; i++) {
+-        float *v = &s_fb[s_fb_n * 6];
++        float *v = &s_fb[s_fb_n * GEOV];
+         v[0] = precise ? s_pc_x[i] : (float)xs[i];
+         v[1] = precise ? s_pc_y[i] : (float)ys[i];
+-        v[2] = ((cs[i] & 0x1F) << 3) / 255.0f;
+-        v[3] = (((cs[i] >> 5) & 0x1F) << 3) / 255.0f;
+-        v[4] = (((cs[i] >> 10) & 0x1F) << 3) / 255.0f;
++        geometry_color(&v[2], cs, rgb24, i);
+         v[5] = mask_a;
++        v[6] = zdepth[i];
+         s_fb_n++;
+@@ -2005,3 +2047,11 @@
+     uint16_t cs[3] = {c0, c1, c2};
+-    gpu_geometry(GL_TRIANGLES, xs, ys, cs, 3, semi);
++    gpu_geometry(GL_TRIANGLES, xs, ys, cs, NULL, 3, semi);
++}
++/* Polygon entry points only: gpu.c published this triangle's packet colours. */
++static void gpu_packet_triangle(int x0,int y0,uint16_t c0, int x1,int y1,uint16_t c1,
++                                int x2,int y2,uint16_t c2, int semi) {
++    int xs[3] = {x0, x1, x2}, ys[3] = {y0, y1, y2};
++    uint16_t cs[3] = {c0, c1, c2};
++    const ShadowtowerTriangleExtra *extra = &g_shadowtower_triangle_extra;
++    gpu_geometry(GL_TRIANGLES, xs, ys, cs, extra->valid ? extra->rgb : NULL, 3, semi);
+ }
+@@ -2011,3 +2061,3 @@
+     uint16_t cs[2] = {c0, c1};
+-    gpu_geometry(GL_LINES, xs, ys, cs, 2, semi);
++    gpu_geometry(GL_LINES, xs, ys, cs, NULL, 2, semi);
+ }
+@@ -2027,2 +2077,8 @@
                                    int semi, const int *lim) {
 +    /* Rectangles carry explicit limits. Only modulated, opaque polygons
 +     * with validated subpixel positions qualify, not raw sprites/UI. */
 +    const int world_filter = !lim && s_pc_valid && !rawtex && semi < 0;
++    const int polygon = !lim;
++    float zdepth[3];
++    const int has_depth = triangle_depth(polygon, zdepth);
      int lim_buf[4];
-@@ -2112,2 +2106,3 @@
+@@ -2086,3 +2142,3 @@
+             else if (s_tex_filter != s_tb_filter) reason = 3;
+-            else if (gate != s_tb_gate) reason = 4;
++            else if (gate != s_tb_gate || has_depth != s_tb_z) reason = 4;
+             else if (twx != s_tb_twin[0] || twy != s_tb_twin[1] ||
+@@ -2096,5 +2152,7 @@
+         if (s_tb_n == 0) {            /* opening a batch: capture its keyed state */
+-            s_tb_semi = batch_semi; s_tb_mask = s_mask_set; s_tb_filter = s_tex_filter; s_tb_gate = gate;
++            s_tb_semi = batch_semi; s_tb_mask = s_mask_set; s_tb_filter = s_tex_filter; s_tb_gate = gate; s_tb_z = has_depth;
+             s_tb_twin[0] = twx; s_tb_twin[1] = twy; s_tb_twin[2] = tox; s_tb_twin[3] = toy;
+         }
++        float light[3][LIGHT_ATTRIBUTES];
++        triangle_lighting(polygon && !rawtex, light);
+         float *vp = &s_tb[s_tb_n * TEXV];
+@@ -2112,2 +2170,5 @@
              vp[19] = s_pq_valid ? s_pq[i] : 0.0f;                   /* a_q; 0 = affine */
 +            vp[20] = (float)world_filter;
++            vp[21] = zdepth[i];
++            memcpy(&vp[22], light[i], sizeof(light[i]));          /* a_light, a_normal */
          }
-@@ -2679,2 +2674,4 @@
+@@ -2125,10 +2186,8 @@
+     if (ww <= 0 || h <= 0) return;
+-    float r = ((c & 0x1F) << 3) / 255.0f;
+-    float g = (((c >> 5) & 0x1F) << 3) / 255.0f;
+-    float b = (((c >> 10) & 0x1F) << 3) / 255.0f;
++    float r = c5tof(c, 0), g = c5tof(c, 5), b = c5tof(c, 10);
+     float a = s_mask_set ? 1.0f : 0.0f;
+     float fx0 = (float)wx, fy0 = (float)y, fx1 = (float)(wx + ww), fy1 = (float)(y + h);
+-    float verts[6 * 6] = {
+-        fx0,fy0,r,g,b,a,  fx1,fy0,r,g,b,a,  fx0,fy1,r,g,b,a,
+-        fx1,fy0,r,g,b,a,  fx0,fy1,r,g,b,a,  fx1,fy1,r,g,b,a,
++    float verts[6 * GEOV] = {
++        fx0,fy0,r,g,b,a,1.0f,  fx1,fy0,r,g,b,a,1.0f,  fx0,fy1,r,g,b,a,1.0f,
++        fx1,fy0,r,g,b,a,1.0f,  fx0,fy1,r,g,b,a,1.0f,  fx1,fy1,r,g,b,a,1.0f,
+     };
+@@ -2142,2 +2201,3 @@
+     mask_stencil(s_mask_set);
++    glDisable(GL_DEPTH_TEST);
+     p_glUseProgram(s_geo_prog);
+@@ -2221,3 +2281,5 @@
+     glStencilMask(0xFF);
+-    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
++    glDepthMask(GL_TRUE);
++    glClearDepth(1.0);
++    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+     rect_add(&s_pack_dirty, x, y, x + w - 1, y + h - 1);
+@@ -2283,2 +2345,3 @@
+     glScissor(dx*S, dy*S, w*S, h*S);
++    depth_reset_scissored();
+     glDisable(GL_BLEND);
+@@ -2384,3 +2447,5 @@
+  * once that triangle has been submitted so a later prim can never inherit it. */
+-static inline void precise_consumed(void) { s_pc_valid = 0; s_pq_valid = 0; }
++static inline void precise_consumed(void) {
++    s_pc_valid = 0; s_pq_valid = 0; g_shadowtower_triangle_extra.valid = 0;
++}
+ 
+@@ -2390,3 +2455,3 @@
+     if (!s_raster_ok) return;
+-    gpu_triangle(x0,y0,col, x1,y1,col, x2,y2,col, s_semi_en?s_semi_mode:-1);
++    gpu_packet_triangle(x0,y0,col, x1,y1,col, x2,y2,col, s_semi_en?s_semi_mode:-1);
+     precise_consumed();
+@@ -2397,3 +2462,3 @@
+     if (!s_raster_ok) return;
+-    gpu_triangle(x0,y0,c0, x1,y1,c1, x2,y2,c2, s_semi_en?s_semi_mode:-1);
++    gpu_packet_triangle(x0,y0,c0, x1,y1,c1, x2,y2,c2, s_semi_en?s_semi_mode:-1);
+     precise_consumed();
+@@ -2679,2 +2744,4 @@
   * every content draw must state its own choice. */
 +#include "post_processing_gl.h"
 +
  static void present_set_scanline(GLint uOn, GLint uStr, GLint uLines,
-@@ -2691,9 +2688,13 @@
+@@ -2691,10 +2758,15 @@
  }
 -#define PRESENT_SCANLINE(pitch, disp, oh)                                   \
 -    present_set_scanline(s_present_uScanline, s_present_uScanStrength,      \
@@ -141,6 +404,7 @@
 +                         s_present_uScanLines, s_present_uScanScale, \
 +                         (pitch), (disp), (oh)); \
 +    shadowtower_postfx_upload(0, s_present_prog, (pitch), (disp), (oh)); \
++    ambient_occlusion_upload(s_present_prog, 0, 0, 0, NULL); \
 +} while (0)
 +#define INTERP_SCANLINE(pitch, disp, oh) do { \
 +    present_set_scanline(s_interp_uScanline, s_interp_uScanStrength, \
@@ -148,18 +412,23 @@
 +                         (pitch), (disp), (oh)); \
 +    shadowtower_postfx_upload(1, s_interp_prog, (pitch) / s_scale, (disp) / s_scale, (oh)); \
 +} while (0)
-@@ -2768,2 +2769,4 @@
+ 
+@@ -2767,4 +2839,6 @@
+ 
 +#include "render_scale_gl.h"
 +
  static int init_gpu_raster(void) {
 -    s_scale = s_req_scale;
 +    s_scale = 1; /* Commit the actual scale only after all targets allocate. */
-@@ -2781,4 +2784,1 @@
+ 
+@@ -2780,5 +2854,2 @@
+ 
 -    int hw = VRAM_W * s_scale, hh = VRAM_H * s_scale;
 -    s_hr_tex      = make_tex(GL_RGBA8, hw, hh, GL_RGBA, GL_UNSIGNED_BYTE);
 -    s_scratch_tex = make_tex(GL_RGBA8, hw, hh, GL_RGBA, GL_UNSIGNED_BYTE);
      s_up_tex      = make_tex(GL_RGBA8, VRAM_W, VRAM_H, GL_RGBA, GL_UNSIGNED_BYTE);
-@@ -2801,8 +2801,2 @@
+@@ -2800,10 +2871,4 @@
+ 
 -    p_glGenRenderbuffers(1, &s_hr_rb);
 -    p_glBindRenderbuffer(PSXGL_RENDERBUFFER, s_hr_rb);
 -    p_glRenderbufferStorage(PSXGL_RENDERBUFFER, PSXGL_DEPTH24_STENCIL8, hw, hh);
@@ -169,15 +438,47 @@
      if (!make_fbo(&s_raw_fbo, s_raw_tex, 0)) return 0;
 -    if (!make_fbo(&s_scratch_fbo, s_scratch_tex, 0)) return 0;
 +    if (!shadowtower_allocate_render_targets(s_req_scale)) return 0;
-@@ -2894,2 +2888,3 @@
+ 
+@@ -2873,6 +2938,8 @@
+     p_glBindBuffer(PSXGL_ARRAY_BUFFER, s_geo_vbo);
+-    p_glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
++    p_glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, GEOV * sizeof(float), (void *)0);
+     p_glEnableVertexAttribArray(0);
+-    p_glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)(2 * sizeof(float)));
++    p_glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, GEOV * sizeof(float), (void *)(2 * sizeof(float)));
+     p_glEnableVertexAttribArray(1);
++    p_glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, GEOV * sizeof(float), (void *)(6 * sizeof(float)));
++    p_glEnableVertexAttribArray(2);
+ 
+@@ -2894,2 +2961,6 @@
          p_glVertexAttribPointer(9, 1, GL_FLOAT, GL_FALSE, st, (void*)(19*sizeof(float))); p_glEnableVertexAttribArray(9); /* q      */
 +        p_glVertexAttribPointer(10, 1, GL_FLOAT, GL_FALSE, st, (void*)(20*sizeof(float))); p_glEnableVertexAttribArray(10);
++        p_glVertexAttribPointer(11, 1, GL_FLOAT, GL_FALSE, st, (void*)(21*sizeof(float))); p_glEnableVertexAttribArray(11);
++        p_glVertexAttribPointer(12, 4, GL_FLOAT, GL_FALSE, st, (void*)(22*sizeof(float))); p_glEnableVertexAttribArray(12);
++        p_glVertexAttribPointer(13, 4, GL_FLOAT, GL_FALSE, st, (void*)(26*sizeof(float))); p_glEnableVertexAttribArray(13);
      }
-@@ -2946,2 +2941,3 @@
+@@ -2914,3 +2985,5 @@
+     glStencilMask(0xFF);
+-    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
++    glDepthMask(GL_TRUE);
++    glClearDepth(1.0);
++    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+     p_glBindFramebuffer(PSXGL_FRAMEBUFFER, 0);
+@@ -2946,2 +3019,5 @@
  int gl_renderer_init_context(SDL_Window *win) {
 +    shadowtower_postfx_reset();
++    depth_reset_context();
++    lighting_reset_context();
      s_win = win;
-@@ -3021,2 +3017,3 @@
+@@ -3021,2 +3097,3 @@
          SDL_GL_DeleteContext(s_ctx); s_ctx = NULL;
 +        free(s_conv); s_conv = NULL;
          s_raster_ok = 0;
+@@ -4221,2 +4298,7 @@
+     }
++    /* Depth lines up with the hi-res target only, not wide or held frames. */
++    {
++        const float rect[4] = { u0, v0, u1, v1 };
++        ambient_occlusion_upload(s_present_prog, v_flip && tex == s_hr_tex, tex_w, tex_h, rect);
++    }
+     p_glUniform4f(s_present_uUvRect, u0, v0, u1, v1);

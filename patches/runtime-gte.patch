@@ -1,0 +1,22 @@
+# source-sha256: 79ba59aeb0eec12dc864ba24c5d1e21f736a588fac29077f9f06d1249c1f1b8f
+--- a/psxrecomp/runtime/src/gte.cpp
++++ b/psxrecomp/runtime/src/gte.cpp
+@@ -4,2 +4,3 @@
+ #include "pgxp.h"
++#include "gte_lighting_capture.h"
+ #include <algorithm>
+@@ -286,2 +287,3 @@
+ extern "C" void gte_precision_store_word(uint32_t addr, uint8_t reg) {
++    if (!s_gte_replay_sandbox && reg >= 20 && reg <= 22) shadowtower_light_store(addr, reg);
+     if (s_gte_replay_sandbox || reg < 12 || reg > 15) return;
+@@ -1813,2 +1815,3 @@
+     gte_run_command(&gte, cmd);
++    if (!s_gte_replay_sandbox) shadowtower_light_capture(&gte, cmd);
+ 
+@@ -2078,2 +2081,6 @@
+             break;
++        case 20: case 21: case 22:
++            cpu->gte_data[reg] = val;
++            if (!PSXRecomp::GTE::s_gte_replay_sandbox) shadowtower_light_register_written(reg);
++            break;
+         case 23:

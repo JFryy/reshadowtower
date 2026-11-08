@@ -3,14 +3,16 @@ set(SHADOWTOWER_GL_SOURCE
 shadowtower_prepare(
   "${SHADOWTOWER_GL_SOURCE}" "${PSXRECOMP_ROOT}/runtime/src/gpu_gl_renderer.c"
   runtime-graphics "${CMAKE_CURRENT_SOURCE_DIR}/src/world_texture_filter.glsl"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/post_processing.glsl")
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/post_processing.glsl"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ambient_occlusion.glsl"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/gte_lighting.glsl")
 list(REMOVE_ITEM PSXRECOMP_RUNTIME_SOURCES
      "${PSXRECOMP_ROOT}/runtime/src/gpu_gl_renderer.c")
 list(APPEND PSXRECOMP_RUNTIME_SOURCES "${SHADOWTOWER_GL_SOURCE}")
 
 set(SHADOWTOWER_GPU_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/graphics/gpu.c")
 shadowtower_prepare("${SHADOWTOWER_GPU_SOURCE}"
-                    "${PSXRECOMP_ROOT}/runtime/src/gpu.c" runtime-widescreen)
+                    "${PSXRECOMP_ROOT}/runtime/src/gpu.c" runtime-gpu)
 list(REMOVE_ITEM PSXRECOMP_RUNTIME_SOURCES
      "${PSXRECOMP_ROOT}/runtime/src/gpu.c")
 list(APPEND PSXRECOMP_RUNTIME_SOURCES "${SHADOWTOWER_GPU_SOURCE}")
@@ -32,3 +34,10 @@ shadowtower_prepare(
 list(REMOVE_ITEM PSXRECOMP_RUNTIME_SOURCES
      "${PSXRECOMP_ROOT}/recompiler/src/config_loader.cpp")
 list(APPEND PSXRECOMP_RUNTIME_SOURCES "${SHADOWTOWER_SETTINGS_SOURCE}")
+
+set(SHADOWTOWER_GTE_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/graphics/gte.cpp")
+shadowtower_prepare("${SHADOWTOWER_GTE_SOURCE}"
+                    "${PSXRECOMP_ROOT}/runtime/src/gte.cpp" runtime-gte)
+list(REMOVE_ITEM PSXRECOMP_RUNTIME_SOURCES
+     "${PSXRECOMP_ROOT}/runtime/src/gte.cpp")
+list(APPEND PSXRECOMP_RUNTIME_SOURCES "${SHADOWTOWER_GTE_SOURCE}")

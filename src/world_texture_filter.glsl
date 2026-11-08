@@ -18,22 +18,39 @@ vec4 world_sample(vec2 uv, vec2 width, int stp) {
          + world_tap(p + direction, stp) * weight.x * weight.y;
 }
 
-// Bounded four-tap directional minification, not mipmaps or temporal filtering.
+// Anisotropic minification without mipmaps: VRAM pages and CLUTs change between
+// frames, so the footprint is integrated from decoded texels. Probes are spaced
+// about one minor-axis width apart along the major axis; the minor axis is
+// widened only when it minifies too. At most 8 probes (32 taps) per pixel.
+const int WORLD_MAX_PROBES = 8;
+const float WORLD_MAX_SPAN = 8.0;
+
 vec3 world_filter(vec2 uv, vec2 dx, vec2 dy, int raw) {
     int stp = (raw >> 15) & 1;
     vec2 width = clamp(abs(dx) + abs(dy), vec2(0.0001), vec2(1.0));
-    vec2 major = dot(dx, dx) > dot(dy, dy) ? dx : dy;
+    bool x_major = dot(dx, dx) > dot(dy, dy);
+    vec2 major = x_major ? dx : dy;
+    vec2 minor = x_major ? dy : dx;
     float span = length(major);
     uv += vec2(u_shift);
     vec4 color = world_sample(uv, width, stp);
     if (span > 1.0) {
-        vec2 footprint = major * (min(span, 4.0) / span);
+        float minor_span = length(minor);
+        bool widen = minor_span > 1.0;
+        int budget = widen ? WORLD_MAX_PROBES / 2 : WORLD_MAX_PROBES;
+        float covered = min(span, WORLD_MAX_SPAN);
+        int probes = int(clamp(ceil(covered / max(minor_span, 1.0)), 2.0, float(budget)));
+        vec2 along = major * (covered / span);
+        vec2 across = widen ? minor * (min(minor_span, 2.0) / minor_span) * 0.25 : vec2(0.0);
         vec4 distant = vec4(0.0);
-        for (int i = 0; i < 4; ++i) {
-            float offset = (float(i) + 0.5) / 4.0 - 0.5;
-            distant += world_sample(uv + footprint * offset, width, stp);
+        for (int i = 0; i < WORLD_MAX_PROBES; ++i) {
+            if (i >= probes) break;
+            vec2 probe = uv + along * ((float(i) + 0.5) / float(probes) - 0.5);
+            distant += widen
+                ? 0.5 * (world_sample(probe - across, width, stp) + world_sample(probe + across, width, stp))
+                : world_sample(probe, width, stp);
         }
-        color = mix(color, distant * 0.25, smoothstep(1.0, 2.0, span));
+        color = mix(color, distant / float(probes), smoothstep(1.0, 2.0, span));
     }
     return color.a > 0.0 ? color.rgb / color.a : col5(raw);
 }

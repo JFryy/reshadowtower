@@ -380,6 +380,16 @@ static void drawGraphicsPage(const PageContext& ui) {
     hint("FMV filtering requires linear output filtering. Your FMV choice is remembered when output filtering is off.");
     ui.dirty |= ImGui::Checkbox("Geometry correction", &settings.geometry);
     ui.dirty |= ImGui::Checkbox("Perspective-correct textures", &settings.perspective);
+    if (ImGui::CollapsingHeader("Lighting and depth", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ui.dirty |= ImGui::Checkbox("Depth buffer", &settings.depthBuffer);
+        hint("Hides 3D polygons behind nearer ones instead of trusting the game's draw order.");
+        ui.dirty |= ImGui::Checkbox("Ambient occlusion", &settings.ambientOcclusion);
+        hint("Darkens creases and corners using the depth of the 3D scene.");
+        ui.dirty |= ImGui::Checkbox("Per-pixel lighting", &settings.pixelLighting);
+        hint("Recomputes the game's vertex lighting for every pixel.");
+        ui.dirty |= ImGui::Checkbox("Smooth fog", &settings.smoothFog);
+        hint("Fades geometry into fog per pixel instead of per polygon.");
+    }
     if (ImGui::CollapsingHeader("Frame pacing")) {
         ui.dirty |= ImGui::Checkbox("VSync", &settings.vsync);
         hint("Synchronize presentation when the display timing supports it. The runtime uses its own pacer otherwise; disabling this does not unlock game speed.");

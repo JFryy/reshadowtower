@@ -95,7 +95,7 @@ inline PostFx postFxPresetValues(PostFxPreset preset) {
     switch (preset) {
     case PostFxPreset::subtle:
         p.enabled = true; p.contrast = 1.05f; p.saturation = .9f;
-        p.grain = .015f; p.dither = .1f; p.bloom = .08f; break;
+        p.grain = .008f; p.dither = .1f; p.bloom = .08f; p.scanlines = .08f; break;
     case PostFxPreset::crt:
         p.enabled = true; p.contrast = 1.05f; p.grain = .02f; p.dither = .25f;
         p.bloom = .08f; p.scanlines = .3f; p.mask = .15f; p.curvature = .04f; break;
@@ -124,9 +124,10 @@ struct Settings {
     bool outputFiltering = false;
     bool widescreen = false, fullscreen = false, filter = true, geometry = true, perspective = true;
     bool vsync = true, lowLatency = true;
+    bool depthBuffer = true, ambientOcclusion = true, pixelLighting = true, smoothFog = true;
     double mouseSensitivity = mouseSensitivityRange.fallback;
     double stickSensitivity = stickSensitivityRange.fallback, stickDeadzone = stickDeadzoneRange.fallback;
-    PostFx postFx;
+    PostFx postFx = postFxPresetValues(PostFxPreset::subtle);
 };
 // Name the first out-of-range setting, or return an empty string when all are valid.
 inline std::string invalidSetting(const Settings& s) {
@@ -154,7 +155,7 @@ inline std::string invalidSetting(const Settings& s) {
     return {};
 }
 // Translate launcher preferences into overrides consumed by the game runtime.
-inline std::array<std::pair<std::string, std::string>, 9> gameEnvironment(const Settings& s) {
+inline std::array<std::pair<std::string, std::string>, 13> gameEnvironment(const Settings& s) {
     std::string postFx = "0";
     if (s.postFx.enabled) {
         std::ostringstream out;
@@ -174,7 +175,11 @@ inline std::array<std::pair<std::string, std::string>, 9> gameEnvironment(const 
              {"SHADOWTOWER_FXAA", s.postFx.enabled && s.postFx.fxaa ? "1" : "0"},
              {"SHADOWTOWER_SHARPEN", s.postFx.enabled ? std::to_string(s.postFx.sharpen) : "0"},
              {"SHADOWTOWER_STICK_SENSITIVITY", std::to_string(s.stickSensitivity)},
-             {"SHADOWTOWER_STICK_DEADZONE", std::to_string(s.stickDeadzone)}}};
+             {"SHADOWTOWER_STICK_DEADZONE", std::to_string(s.stickDeadzone)},
+             {"SHADOWTOWER_DEPTH_BUFFER", s.depthBuffer ? "1" : "0"},
+             {"SHADOWTOWER_AMBIENT_OCCLUSION", s.ambientOcclusion ? "1" : "0"},
+             {"SHADOWTOWER_PIXEL_LIGHTING", s.pixelLighting ? "1" : "0"},
+             {"SHADOWTOWER_SMOOTH_FOG", s.smoothFog ? "1" : "0"}}};
 }
 // Presets alter only graphics quality; custom values and display preferences survive.
 enum class GraphicsPreset { performance, balanced, quality, custom };
@@ -238,6 +243,10 @@ inline void overlay(Settings& s, const toml::value& root) {
         const auto& options = root.at("launcher");
         s.vsync = toml::find_or(options, "vsync", s.vsync);
         s.lowLatency = toml::find_or(options, "low_latency", s.lowLatency);
+        s.depthBuffer = toml::find_or(options, "depth_buffer", s.depthBuffer);
+        s.ambientOcclusion = toml::find_or(options, "ambient_occlusion", s.ambientOcclusion);
+        s.pixelLighting = toml::find_or(options, "per_pixel_lighting", s.pixelLighting);
+        s.smoothFog = toml::find_or(options, "smooth_fog", s.smoothFog);
         const auto ranged = [&](const char* key, double& target, const Range<double>& range) {
             const double value = toml::find_or(options, key, target);
             if (range.contains(value)) target = value;
@@ -325,6 +334,10 @@ inline void save(const fs::path& workspace, const Settings& s) {
     doc["launcher"]["widescreen_ratio"] = ratio;
     doc["launcher"]["vsync"] = s.vsync;
     doc["launcher"]["low_latency"] = s.lowLatency;
+    doc["launcher"]["depth_buffer"] = s.depthBuffer;
+    doc["launcher"]["ambient_occlusion"] = s.ambientOcclusion;
+    doc["launcher"]["per_pixel_lighting"] = s.pixelLighting;
+    doc["launcher"]["smooth_fog"] = s.smoothFog;
     doc["launcher"]["mouse_sensitivity"] = s.mouseSensitivity;
     doc["launcher"]["stick_sensitivity"] = s.stickSensitivity;
     doc["launcher"]["stick_deadzone"] = s.stickDeadzone;
