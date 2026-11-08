@@ -75,10 +75,11 @@ struct Settings {
     bool widescreen = false, fullscreen = false, filter = true, geometry = true, perspective = true;
     bool vsync = true, lowLatency = true;
     double mouseSensitivity = 1.0;
+    double stickSensitivity = 1.0, stickDeadzone = 0.15;
     PostFx postFx;
 };
 // Translate launcher preferences into overrides consumed by the game runtime.
-inline std::array<std::pair<std::string, std::string>, 7> gameEnvironment(const Settings& s) {
+inline std::array<std::pair<std::string, std::string>, 9> gameEnvironment(const Settings& s) {
     std::string postFx = "0";
     if (s.postFx.enabled) {
         std::ostringstream out;
@@ -96,7 +97,9 @@ inline std::array<std::pair<std::string, std::string>, 7> gameEnvironment(const 
              {"SHADOWTOWER_MOUSE_SENSITIVITY", std::to_string(s.mouseSensitivity)},
              {"SHADOWTOWER_POSTFX", postFx},
              {"SHADOWTOWER_FXAA", s.postFx.enabled && s.postFx.fxaa ? "1" : "0"},
-             {"SHADOWTOWER_SHARPEN", s.postFx.enabled ? std::to_string(s.postFx.sharpen) : "0"}}};
+             {"SHADOWTOWER_SHARPEN", s.postFx.enabled ? std::to_string(s.postFx.sharpen) : "0"},
+             {"SHADOWTOWER_STICK_SENSITIVITY", std::to_string(s.stickSensitivity)},
+             {"SHADOWTOWER_STICK_DEADZONE", std::to_string(s.stickDeadzone)}}};
 }
 // Presets alter only graphics quality; custom values and display preferences survive.
 enum class GraphicsPreset { performance, balanced, quality, custom };
@@ -152,6 +155,10 @@ inline void overlay(Settings& s, const toml::value& root) {
         const double sensitivity = toml::find_or(options, "mouse_sensitivity", s.mouseSensitivity);
         if (std::isfinite(sensitivity) && sensitivity >= 0.05 && sensitivity <= 10.0)
             s.mouseSensitivity = sensitivity;
+        const double stick = toml::find_or(options, "stick_sensitivity", s.stickSensitivity);
+        if (std::isfinite(stick) && stick >= 0.1 && stick <= 5.0) s.stickSensitivity = stick;
+        const double deadzone = toml::find_or(options, "stick_deadzone", s.stickDeadzone);
+        if (std::isfinite(deadzone) && deadzone >= 0 && deadzone <= 0.9) s.stickDeadzone = deadzone;
     }
     if (root.contains("post_processing") && root.at("post_processing").is_table()) {
         const auto& p = root.at("post_processing");
@@ -189,6 +196,8 @@ inline Settings load(const fs::path& workspace) {
 inline void save(const fs::path& workspace, const Settings& s) {
     if (s.wideRatio < 0 || s.wideRatio > 1 || s.scale < 1 || s.scale > maxRenderScale || s.fmvFilter < 0 || s.fmvFilter >= static_cast<int>(fmvFilters.size()) || s.volume < 0 || s.volume > 100 ||
         !std::isfinite(s.mouseSensitivity) || s.mouseSensitivity < 0.05 || s.mouseSensitivity > 10.0 ||
+        !std::isfinite(s.stickSensitivity) || s.stickSensitivity < 0.1 || s.stickSensitivity > 5.0 ||
+        !std::isfinite(s.stickDeadzone) || s.stickDeadzone < 0 || s.stickDeadzone > 0.9 ||
         !validPostFx(s.postFx))
         throw std::invalid_argument("Invalid settings range");
     const auto file = workspace / "build-release/settings.toml";
@@ -205,6 +214,8 @@ inline void save(const fs::path& workspace, const Settings& s) {
     doc["launcher"]["vsync"] = s.vsync;
     doc["launcher"]["low_latency"] = s.lowLatency;
     doc["launcher"]["mouse_sensitivity"] = s.mouseSensitivity;
+    doc["launcher"]["stick_sensitivity"] = s.stickSensitivity;
+    doc["launcher"]["stick_deadzone"] = s.stickDeadzone;
     v["supersampling"] = s.scale;
     v["fullscreen"] = s.fullscreen;
     v["antialiasing"] = s.outputFiltering;

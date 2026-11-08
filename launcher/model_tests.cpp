@@ -18,7 +18,7 @@ int main() {
           std::ofstream(root / "build-release/settings.toml") << "[video]\naspect_ratio = 'invalid'\nsupersampling = 9\nunknown = 99\n[audio]\nvolume = 35\nother = 'kept'\n"; }
         auto s = launcher::load(root);
         require(!s.widescreen && s.wideRatio == 0 && s.scale == 3 && s.volume == 35);
-        require(s.vsync && s.lowLatency && s.mouseSensitivity == 1.0);
+        require(s.vsync && s.lowLatency && s.mouseSensitivity == 1.0 && s.stickSensitivity == 1.0 && s.stickDeadzone == 0.15);
         require(!s.outputFiltering && s.fmvFilter == 0 && s.scale == 3 && !s.widescreen);
         require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::original);
         require(launcher::gameEnvironment(s)[4].second == "0");
@@ -34,7 +34,7 @@ int main() {
                 s.postFx.scanlines == .3f && s.postFx.mask == .15f && s.postFx.curvature == .04f);
         launcher::applyPostFxPreset(s.postFx, launcher::PostFxPreset::original);
         require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::original);
-        s.vsync = false; s.lowLatency = false; s.mouseSensitivity = 0.05;
+        s.vsync = false; s.lowLatency = false; s.mouseSensitivity = 0.05; s.stickSensitivity = 2.5; s.stickDeadzone = 0.3;
         launcher::applyGraphicsPreset(s, launcher::GraphicsPreset::balanced);
         require(launcher::graphicsPreset(s) == launcher::GraphicsPreset::balanced);
         require(s.scale == 2 && s.filter && s.geometry && !s.perspective);
@@ -50,12 +50,16 @@ int main() {
         require(environment[1].first == "PSX_VSYNC" && environment[1].second == "0");
         require(environment[2].first == "PSX_LOW_LATENCY_INPUT" && environment[2].second == "0");
         require(environment[3].first == "SHADOWTOWER_MOUSE_SENSITIVITY" && environment[3].second == "0.050000");
+        require(environment[7].first == "SHADOWTOWER_STICK_SENSITIVITY" && environment[7].second == "2.500000");
+        require(environment[8].first == "SHADOWTOWER_STICK_DEADZONE" && environment[8].second == "0.300000");
         launcher::save(root, s);
         const auto doc = launcher::parse(root / "build-release/settings.toml");
         require(toml::find<int>(doc, "video", "unknown") == 99);
         require(!launcher::load(root).vsync && !launcher::load(root).lowLatency &&
                 launcher::load(root).mouseSensitivity == 0.05);
         require(toml::find<double>(doc, "launcher", "mouse_sensitivity") == 0.05);
+        require(launcher::load(root).stickSensitivity == 2.5 && launcher::load(root).stickDeadzone == 0.3);
+        require(toml::find<double>(doc, "launcher", "stick_deadzone") == 0.3);
         require(toml::find<std::string>(doc, "audio", "other") == "kept");
         require(launcher::load(root).widescreen && launcher::load(root).wideRatio == 0 && launcher::load(root).volume == 75);
         require(toml::find<std::string>(doc, "video", "aspect_ratio") == "16:9");
@@ -177,9 +181,26 @@ int main() {
             try { launcher::save(root, s); } catch (const std::invalid_argument&) { rejected = true; }
             require(rejected);
         }
+        s.mouseSensitivity = 1.0;
+        for (double invalid : {0.099, 5.001, std::numeric_limits<double>::quiet_NaN()}) {
+            s.stickSensitivity = invalid;
+            rejected = false;
+            try { launcher::save(root, s); } catch (const std::invalid_argument&) { rejected = true; }
+            require(rejected);
+        }
+        s.stickSensitivity = 1.0;
+        for (double invalid : {-0.01, 0.901, std::numeric_limits<double>::infinity()}) {
+            s.stickDeadzone = invalid;
+            rejected = false;
+            try { launcher::save(root, s); } catch (const std::invalid_argument&) { rejected = true; }
+            require(rejected);
+        }
+        s.stickDeadzone = 0.15;
         std::ofstream(root / "build-release/settings.toml") <<
-            "[launcher]\nvsync = false\nlow_latency = false\nmouse_sensitivity = 11.0\nextra = 42\n";
+            "[launcher]\nvsync = false\nlow_latency = false\nmouse_sensitivity = 11.0\n"
+            "stick_sensitivity = 6.0\nstick_deadzone = 0.95\nextra = 42\n";
         require(launcher::load(root).mouseSensitivity == 1.0);
+        require(launcher::load(root).stickSensitivity == 1.0 && launcher::load(root).stickDeadzone == 0.15);
         require(!launcher::load(root).vsync && !launcher::load(root).lowLatency);
         s.mouseSensitivity = 10.0;
         launcher::save(root, s);

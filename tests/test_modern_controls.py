@@ -22,13 +22,16 @@ class ModernControlsTests(unittest.TestCase):
             subprocess.run(["cc", "-std=c11", *flags, "-I", directory, "-I", str(ROOT / "src"),
                             "-I", str(framework_root() / "runtime/include"),
                             str(ROOT / "tests/modern_controls_test.c"), "-lm", "-o", str(executable)], check=True)
-            for sensitivity in ("invalid", "2"):
+            for sensitivity, stick_sensitivity, deadzone in (("invalid", "9", "0.95"), ("2", "2", "0.25")):
                 with self.subTest(sensitivity=sensitivity):
                     result = subprocess.run([str(executable)], capture_output=True, text=True,
-                                            env={**os.environ, "SHADOWTOWER_MOUSE_SENSITIVITY": sensitivity})
+                                            env={**os.environ, "SHADOWTOWER_MOUSE_SENSITIVITY": sensitivity,
+                                                 "SHADOWTOWER_STICK_SENSITIVITY": stick_sensitivity,
+                                                 "SHADOWTOWER_STICK_DEADZONE": deadzone})
                     self.assertEqual(result.returncode, 0, result.stderr)
                     if sensitivity == "invalid":
-                        self.assertIn("invalid SHADOWTOWER_MOUSE_SENSITIVITY", result.stderr)
+                        for name in ("MOUSE_SENSITIVITY", "STICK_SENSITIVITY", "STICK_DEADZONE"):
+                            self.assertIn(f"invalid SHADOWTOWER_{name}", result.stderr)
 
 
 if __name__ == "__main__":

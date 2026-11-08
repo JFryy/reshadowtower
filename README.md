@@ -77,7 +77,7 @@ packages** workflow on your branch. It builds both platforms with pinned tools.
 | --- | --- |
 | Move | W / S |
 | Strafe | A / D |
-| Look | Mouse |
+| Look | Mouse or right stick |
 | Attack | Left click or F |
 | Shield | Hold right click or Z |
 | Interact / confirm | E or X |
@@ -93,7 +93,7 @@ Click during gameplay to capture the mouse. The first click won't attack.
 Escape releases it but does not pause. Use E or X to confirm menus, not Enter.
 Equip a shield before using it. Close the window to quit.
 
-Controllers use the original digital-pad controls. The right stick is not mouse look.
+Controllers use the original digital-pad controls, with right-stick look.
 
 Set mouse sensitivity at launch (default `1.0`, range `0.05`–`10`):
 
