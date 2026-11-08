@@ -4,6 +4,7 @@
 #include "psx_sha256.h"
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <filesystem>
 #include <cmath>
 #include <fstream>
@@ -191,6 +192,25 @@ inline Settings load(const fs::path& workspace) {
     const auto file = workspace / "build-release/settings.toml";
     if (fs::exists(file)) overlay(s, parse(file));
     return s;
+}
+// Move an unparseable settings.toml aside so defaults load and Play stays usable.
+// Returns a notice for the user, or an empty string when the file was fine or absent.
+inline std::string setAsideCorruptSettings(const fs::path& workspace) {
+    const auto file = workspace / "build-release/settings.toml";
+    if (!fs::exists(file)) return {};
+    std::string error;
+    try {
+        parse(file);
+        return {};
+    } catch (const toml::syntax_error& e) {
+        error = e.what();
+    }
+    auto aside = file;
+    aside += ".corrupt-" + std::to_string(std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count());
+    fs::rename(file, aside);
+    return "settings.toml could not be parsed, so it was moved to " + aside.filename().u8string() +
+           " and defaults were loaded.\n" + error;
 }
 // Replace only launcher-owned preferences, preserving other TOML fields.
 inline void save(const fs::path& workspace, const Settings& s) {

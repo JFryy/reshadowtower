@@ -9,6 +9,7 @@ include(cmake/adapters.cmake)
 include(cmake/graphics.cmake)
 include(cmake/input.cmake)
 include(cmake/overrides.cmake)
+include(cmake/saves.cmake)
 
 set(SHADOWTOWER_AOT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/generated/aot/overlays_static.c")
 if(NOT EXISTS "${SHADOWTOWER_AOT_SOURCE}")

@@ -182,10 +182,15 @@ int main(int argc, char** argv) {
     std::string message;
     bool settingsLoaded = true;
     const auto workspacePath = std::filesystem::u8path(workspace);
-    try { settings = launcher::load(workspacePath); bindings = launcher::loadBindings(workspacePath); }
+    try {
+        message = launcher::setAsideCorruptSettings(workspacePath);
+        settings = launcher::load(workspacePath);
+        bindings = launcher::loadBindings(workspacePath);
+    }
     catch (const std::exception& e) {
         settingsLoaded = false;
-        message = "Cannot load preferences. Correct the reported file and restart.\n" + std::string(e.what());
+        if (!message.empty()) message += "\n";
+        message += "Cannot load preferences. Correct the reported file and restart.\n" + std::string(e.what());
     }
     bool ready = launcher::ready(workspacePath), running = true;
     int page = ready ? 0 : 4;
@@ -447,7 +452,7 @@ int main(int argc, char** argv) {
             hint("Master volume for the game. Changes apply on the next launch.");
             ImGui::Spacing();
             ImGui::SetNextItemWidth(250 * uiScale);
-            dirty |= ImGui::SliderInt("Volume", &settings.volume, 0, 100, "%d%%");
+            dirty |= ImGui::SliderInt("Volume", &settings.volume, 0, 100, "%d%%", ImGuiSliderFlags_AlwaysClamp);
             ImGui::EndDisabled();
         } else if (page == 3) {
             ImGui::BeginDisabled(!settingsLoaded);
@@ -459,7 +464,8 @@ int main(int argc, char** argv) {
             hint("Click the game window to capture the mouse. Escape releases it.");
             float sensitivity = static_cast<float>(settings.mouseSensitivity);
             ImGui::SetNextItemWidth(230 * uiScale);
-            if (ImGui::SliderFloat("Mouse sensitivity", &sensitivity, .05f, 10.f, "%.2fx", ImGuiSliderFlags_Logarithmic)) {
+            if (ImGui::SliderFloat("Mouse sensitivity", &sensitivity, .05f, 10.f, "%.2fx",
+                                   ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_AlwaysClamp)) {
                 settings.mouseSensitivity = static_cast<double>(sensitivity);
                 dirty = true;
             }
@@ -468,13 +474,14 @@ int main(int argc, char** argv) {
             hint("On a controller, the right stick turns and looks up and down.");
             float stickSensitivity = static_cast<float>(settings.stickSensitivity);
             ImGui::SetNextItemWidth(230 * uiScale);
-            if (ImGui::SliderFloat("Stick sensitivity", &stickSensitivity, .1f, 5.f, "%.2fx", ImGuiSliderFlags_Logarithmic)) {
+            if (ImGui::SliderFloat("Stick sensitivity", &stickSensitivity, .1f, 5.f, "%.2fx",
+                                   ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_AlwaysClamp)) {
                 settings.stickSensitivity = static_cast<double>(stickSensitivity);
                 dirty = true;
             }
             float deadzone = static_cast<float>(settings.stickDeadzone * 100);
             ImGui::SetNextItemWidth(230 * uiScale);
-            if (ImGui::SliderFloat("Stick deadzone", &deadzone, 0.f, 90.f, "%.0f%%")) {
+            if (ImGui::SliderFloat("Stick deadzone", &deadzone, 0.f, 90.f, "%.0f%%", ImGuiSliderFlags_AlwaysClamp)) {
                 settings.stickDeadzone = static_cast<double>(deadzone) / 100;
                 dirty = true;
             }
