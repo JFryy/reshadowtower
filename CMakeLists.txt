@@ -22,6 +22,7 @@ endif()
 
 psxrecomp_add_game_runtime(
   psx-runtime
+  PGXP
   PRELOADED_MODS_DIR
   NONE
   WINDOW_TITLE

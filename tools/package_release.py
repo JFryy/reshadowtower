@@ -41,7 +41,7 @@ PROJECT_FILES = (
     "seeds/ghidra_funcs.txt", "captures/overlay_captures.json", "tools/prepare_source.py", "tools/release_cli.py", "tools/generate_aot.py",
     "tools/release_common.py", "tools/launcher_backend.py",
     "cmake/adapters.cmake", "patches/runtime-input.patch", "patches/runtime-graphics.patch",
-    "patches/runtime-widescreen.patch", "patches/runtime-settings.patch", "patches/runtime-software.patch",
+    "patches/runtime-gpu.patch", "patches/runtime-settings.patch", "patches/runtime-software.patch",
     "patches/runtime-overrides.patch", "patches/runtime-overrides-interp.patch", "patches/recompiler-overrides.patch",
     "patches/runtime-memcard.patch",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",

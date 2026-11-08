@@ -248,6 +248,22 @@ class WorldTextureFilterGL(unittest.TestCase):
             return sum(abs(reds[y*self.W+x]-reds[y*self.W+x-1]) for y in range(self.H) for x in range(1,self.W))
         self.assertLess(variation(filtered), variation(nearest))
 
+    def test_long_footprint_integrates_beyond_four_texels(self):
+        # Period-8 stripes (4 red, 4 blue) seen 7 texels per pixel along x. A footprint
+        # capped at 4 texels can land entirely inside one stripe; a 7-texel one cannot.
+        p = self._vram([(x,y,0x001f if (x // 4) % 2 == 0 else 0x7c00) for y in range(4) for x in range(256)])
+        image = self._render(p, uv=(0,0), step=(7,0))
+        reds = image[0::4]
+        self.assertTrue(all(64 < r < 192 for r in reds), sorted(set(reds)))
+
+    def test_anisotropic_footprint_keeps_minor_axis_sharp(self):
+        # Horizontal stripes, strongly minified along x only: rows must stay pure.
+        p = self._vram([(x,y,0x001f if y % 2 == 0 else 0x7c00) for y in range(8) for x in range(256)])
+        image = self._render(p, uv=(0,0.5), step=(6,0.1))
+        pixels = list(zip(*[iter(image)]*4))
+        pure = sum(1 for r, g, b, a in pixels if r > 245 and b < 10 or b > 245 and r < 10)
+        self.assertGreater(pure, len(pixels) * 0.8)
+
 
 if __name__ == "__main__":
     unittest.main()

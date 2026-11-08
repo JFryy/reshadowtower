@@ -10,7 +10,7 @@ list(APPEND PSXRECOMP_RUNTIME_SOURCES "${SHADOWTOWER_GL_SOURCE}")
 
 set(SHADOWTOWER_GPU_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/graphics/gpu.c")
 shadowtower_prepare("${SHADOWTOWER_GPU_SOURCE}"
-                    "${PSXRECOMP_ROOT}/runtime/src/gpu.c" runtime-widescreen)
+                    "${PSXRECOMP_ROOT}/runtime/src/gpu.c" runtime-gpu)
 list(REMOVE_ITEM PSXRECOMP_RUNTIME_SOURCES
      "${PSXRECOMP_ROOT}/runtime/src/gpu.c")
 list(APPEND PSXRECOMP_RUNTIME_SOURCES "${SHADOWTOWER_GPU_SOURCE}")

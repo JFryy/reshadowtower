@@ -17,7 +17,7 @@ from prepare_source import apply_patch, prepare
 
 class SourceAdapterTests(unittest.TestCase):
     def test_title_patches_apply_to_pinned_sources(self):
-        for name in ("runtime-input", "runtime-graphics", "runtime-widescreen", "runtime-settings", "runtime-software",
+        for name in ("runtime-input", "runtime-graphics", "runtime-gpu", "runtime-settings", "runtime-software",
                      "runtime-overrides", "runtime-overrides-interp", "runtime-memcard", "recompiler-overrides"):
             with self.subTest(patch=name):
                 text = (ROOT / "patches" / f"{name}.patch").read_text(encoding="utf-8")
@@ -53,7 +53,7 @@ class SourceAdapterTests(unittest.TestCase):
         if not compiler:
             self.skipTest("C compiler unavailable")
         source = (framework_root() / "runtime/src/gpu.c").read_text(encoding="utf-8-sig")
-        patched = apply_patch(source, (ROOT / "patches/runtime-widescreen.patch").read_text())
+        patched = apply_patch(source, (ROOT / "patches/runtime-gpu.patch").read_text())
         functions = []
         for name in ("shadowtower_menu_active", "ws_game_mode"):
             match = re.search(r"static int " + name + r"\(void\) \{.*?\n\}", patched, re.DOTALL)
