@@ -1,4 +1,4 @@
-/* Shadow Tower USA: keyboard movement and direct player-camera mouse input. */
+/* Shadow Tower USA: keyboard movement and direct player-camera mouse and right-stick input. */
 #include "modern_controls.h"
 #include "mod_plugins.h"
 #include "psx_keybinds.h"
@@ -18,10 +18,14 @@
 #define PLAYER_YAW 0x801991A2u
 #define ANGLE_MASK 4095
 #define PITCH_LIMIT 700
+#define STICK_RATE 2048.0f /* PS1 angle units per second at full deflection */
+#define STICK_MAX_STEP_MS 50
 
 static float mouse_sensitivity = 1.0f; /* PS1 angle units per relative mouse count */
 static float pending_x, pending_y;
-static Uint64 last_look, last_sample;
+static float stick_sensitivity = 1.0f; /* multiplier on STICK_RATE */
+static float stick_deadzone = 0.15f; /* fraction of full deflection */
+static Uint64 last_look, last_sample, last_stick;
 static SDL_Window *captured_window;
 static int mouse_was_down, suppress_click;
 
@@ -59,7 +63,8 @@ static void update_camera(struct CPUState *cpu, uint32_t address) {
     if (!gameplay_image_loaded()) return;
     const Uint64 now = SDL_GetTicks();
     last_look = now;
-    if (!captured_window || SDL_GetKeyboardFocus() != captured_window ||
+    SDL_Window *focus = SDL_GetKeyboardFocus();
+    if (!focus || (captured_window && focus != captured_window) ||
         now - last_sample > 100) {
         pending_x = pending_y = 0;
         return;
@@ -82,6 +87,48 @@ static void update_camera(struct CPUState *cpu, uint32_t address) {
     if (pitch < -PITCH_LIMIT) pitch = -PITCH_LIMIT;
     psx_mod_write_half(PLAYER_YAW, (uint16_t)((yaw - dx) & ANGLE_MASK));
     psx_mod_write_half(PLAYER_PITCH, (uint16_t)(pitch & ANGLE_MASK));
+}
+
+/* Radial deadzone with the remaining travel rescaled to 0..1. */
+static void stick_deflection(Sint16 raw_x, Sint16 raw_y, float *x, float *y) {
+    const float sx = raw_x / 32767.0f;
+    const float sy = raw_y / 32767.0f;
+    const float magnitude = sqrtf(sx * sx + sy * sy);
+    *x = *y = 0;
+    if (magnitude <= stick_deadzone) return;
+    const float scaled = fminf(1, (magnitude - stick_deadzone) / (1 - stick_deadzone));
+    *x = sx / magnitude * scaled;
+    *y = sy / magnitude * scaled;
+}
+
+/* First gamepad the framework has opened; SDL_GetGamepadFromID never opens one itself. */
+static SDL_Gamepad *open_gamepad(void) {
+    int count = 0;
+    SDL_JoystickID *ids = SDL_GetGamepads(&count);
+    if (!ids) return NULL;
+    SDL_Gamepad *gamepad = NULL;
+    for (int i = 0; i < count && !gamepad; ++i)
+        gamepad = SDL_GetGamepadFromID(ids[i]);
+    SDL_free(ids);
+    return gamepad;
+}
+
+/* Right-stick rate in angle units for the time since the previous sample. */
+static int sample_stick(Uint64 now, int active, float *dx, float *dy) {
+    *dx = *dy = 0;
+    const Uint64 elapsed = last_stick ? now - last_stick : 0;
+    last_stick = now;
+    if (!active) return 0;
+    SDL_Gamepad *gamepad = open_gamepad();
+    if (!gamepad) return 0;
+    float x, y;
+    stick_deflection(SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTX),
+                     SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTY), &x, &y);
+    if (!x && !y) return 0;
+    const float seconds = (elapsed > STICK_MAX_STEP_MS ? STICK_MAX_STEP_MS : elapsed) / 1000.0f;
+    *dx = x * STICK_RATE * stick_sensitivity * seconds;
+    *dy = y * STICK_RATE * stick_sensitivity * seconds;
+    return 1;
 }
 
 /* Sample SDL on the existing main-thread keyboard path; retain gamepad merging. */
@@ -111,11 +158,24 @@ uint16_t shadowtower_pad_word(const uint8_t *keys, int player) {
 
     float dx = 0, dy = 0;
     SDL_GetRelativeMouseState(&dx, &dy);
-    if (captured_window && gameplay && !just_captured &&
-        isfinite(dx) && isfinite(dy)) {
+    const int mouse_look = captured_window && gameplay && !just_captured &&
+                           isfinite(dx) && isfinite(dy);
+    if (mouse_look) {
+        dx *= mouse_sensitivity;
+        dy *= mouse_sensitivity;
+    } else {
+        dx = dy = 0;
+    }
+    float stick_x, stick_y;
+    const int stick_look = sample_stick(now, focus && gameplay, &stick_x, &stick_y);
+    if (stick_look) {
+        dx += stick_x;
+        dy += stick_y;
+    }
+    if (mouse_look || stick_look) {
         /* Bound a single sample so focus changes cannot queue a full spin. */
-        pending_x = fmaxf(-1024, fminf(1024, pending_x + dx * mouse_sensitivity));
-        pending_y = fmaxf(-1024, fminf(1024, pending_y + dy * mouse_sensitivity));
+        pending_x = fmaxf(-1024, fminf(1024, pending_x + dx));
+        pending_y = fmaxf(-1024, fminf(1024, pending_y + dy));
         last_sample = now;
     } else {
         pending_x = pending_y = 0;
@@ -149,21 +209,25 @@ uint16_t shadowtower_pad_word(const uint8_t *keys, int player) {
     return buttons;
 }
 
-/* Read a launch-time sensitivity override without accepting invalid camera deltas. */
-static void configure_mouse(void) {
-    const char *value = getenv("SHADOWTOWER_MOUSE_SENSITIVITY");
-    if (value) {
-        char *end;
-        errno = 0;
-        const float sensitivity = strtof(value, &end);
-        if (errno || end == value || *end || !isfinite(sensitivity) ||
-            sensitivity < 0.05f || sensitivity > 10.0f) {
-            fprintf(stderr, "Shadow Tower: invalid SHADOWTOWER_MOUSE_SENSITIVITY '%s'; "
-                    "use a number from 0.05 to 10. Using default 1.0.\n", value);
-        } else {
-            mouse_sensitivity = sensitivity;
-        }
+/* Read a launch-time float override, keeping the default when it is missing or out of range. */
+static void read_setting(const char *name, float min, float max, float *target) {
+    const char *value = getenv(name);
+    if (!value) return;
+    char *end;
+    errno = 0;
+    const float parsed = strtof(value, &end);
+    if (errno || end == value || *end || !isfinite(parsed) || parsed < min || parsed > max) {
+        fprintf(stderr, "Shadow Tower: invalid %s '%s'; use a number from %g to %g. "
+                "Using default %g.\n", name, value, min, max, *target);
+        return;
     }
+    *target = parsed;
+}
+
+static void configure_look(void) {
+    read_setting("SHADOWTOWER_MOUSE_SENSITIVITY", 0.05f, 10.0f, &mouse_sensitivity);
+    read_setting("SHADOWTOWER_STICK_SENSITIVITY", 0.1f, 5.0f, &stick_sensitivity);
+    read_setting("SHADOWTOWER_STICK_DEADZONE", 0.0f, 0.9f, &stick_deadzone);
     /* Keep camera motion linear instead of applying desktop pointer acceleration. */
     if (!SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE, "0"))
         fprintf(stderr, "Shadow Tower: cannot disable system mouse scaling; "
@@ -171,7 +235,7 @@ static void configure_mouse(void) {
 }
 
 PSX_MOD_CONSTRUCTOR(register_shadow_tower_controls) {
-    configure_mouse();
+    configure_look();
     if (!psx_mod_register_function_entry_plugin("shadowtower.mouse-look", LOOK_UPDATE, update_camera)) {
         fprintf(stderr, "Shadow Tower: camera hook registration failed; check duplicate plugin IDs.\n");
         abort();

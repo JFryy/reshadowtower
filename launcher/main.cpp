@@ -464,6 +464,25 @@ int main(int argc, char** argv) {
                 dirty = true;
             }
             if (ImGui::Button("Reset mouse sensitivity")) { settings.mouseSensitivity = 1.0; dirty = true; }
+            ImGui::Spacing();
+            hint("On a controller, the right stick turns and looks up and down.");
+            float stickSensitivity = static_cast<float>(settings.stickSensitivity);
+            ImGui::SetNextItemWidth(230 * uiScale);
+            if (ImGui::SliderFloat("Stick sensitivity", &stickSensitivity, .1f, 5.f, "%.2fx", ImGuiSliderFlags_Logarithmic)) {
+                settings.stickSensitivity = static_cast<double>(stickSensitivity);
+                dirty = true;
+            }
+            float deadzone = static_cast<float>(settings.stickDeadzone * 100);
+            ImGui::SetNextItemWidth(230 * uiScale);
+            if (ImGui::SliderFloat("Stick deadzone", &deadzone, 0.f, 90.f, "%.0f%%")) {
+                settings.stickDeadzone = static_cast<double>(deadzone) / 100;
+                dirty = true;
+            }
+            if (ImGui::Button("Reset stick settings")) {
+                settings.stickSensitivity = 1.0;
+                settings.stickDeadzone = 0.15;
+                dirty = true;
+            }
             if (ImGui::CollapsingHeader("Controller bindings")) {
                 hint("Physical buttons use SDL / Xbox names. These map to the original PlayStation controls. Device-specific input.ini overrides take precedence.");
                 if (ImGui::BeginTable("Bindings", 2, ImGuiTableFlags_SizingStretchSame)) {

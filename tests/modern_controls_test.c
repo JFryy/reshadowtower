@@ -14,6 +14,17 @@ SDL_Window *focus = (SDL_Window *)&window_token;
 Uint64 ticks = 100; float mx, my; unsigned int mb; uint16_t mem[0x200000];
 bool event_available; SDL_Event event_value;
 uint16_t pad_value; int pad_player; uint8_t pad_keys[SDL_NUM_SCANCODES];
+static int gamepad_token; int gamepad_open; Sint16 rx, ry;
+SDL_JoystickID *SDL_GetGamepads(int *count) {
+    static SDL_JoystickID ids[1] = {7};
+    SDL_JoystickID *copy = malloc(sizeof ids);
+    memcpy(copy, ids, sizeof ids);
+    *count = 1;
+    return copy;
+}
+SDL_Gamepad *SDL_GetGamepadFromID(SDL_JoystickID id) { return gamepad_open && id == 7 ? (SDL_Gamepad *)&gamepad_token : NULL; }
+Sint16 SDL_GetGamepadAxis(SDL_Gamepad *g, SDL_GamepadAxis a) { (void)g; return a == SDL_GAMEPAD_AXIS_RIGHTX ? rx : a == SDL_GAMEPAD_AXIS_RIGHTY ? ry : 0; }
+void SDL_free(void *p) { free(p); }
 Uint64 SDL_GetTicks(void) { return ticks; }
 SDL_Window *SDL_GetKeyboardFocus(void) { return focus; }
 unsigned int SDL_GetMouseState(float *x, float *y) { if (x) *x=0; if (y) *y=0; return mb; }
@@ -34,9 +45,11 @@ bool psx_mod_register_function_entry_plugin(const char*a,uint32_t b,void(*c)(CPU
 static uint16_t poll(uint8_t *k, int p) { return shadowtower_pad_word(k,p); }
 int main(void) {
     uint8_t keys[SDL_NUM_SCANCODES] = {0};
-    const float expected_sensitivity =
-        strcmp(getenv("SHADOWTOWER_MOUSE_SENSITIVITY"), "2") == 0 ? 2.0f : 1.0f;
+    const int custom = strcmp(getenv("SHADOWTOWER_MOUSE_SENSITIVITY"), "2") == 0;
+    const float expected_sensitivity = custom ? 2.0f : 1.0f;
     T(mouse_sensitivity == expected_sensitivity);
+    T(stick_sensitivity == (custom ? 2.0f : 1.0f));
+    T(stick_deadzone == (custom ? 0.25f : 0.15f));
     last_look = last_sample = ticks;
 
     /* Non-player-one calls and unrelated bindings pass through. */
@@ -125,5 +138,81 @@ int main(void) {
     ticks += 101;
     update_camera(NULL, 0);
     T(pending_x == 0 && mem[1] == 4095);
+
+    /* Right stick looks without mouse capture, at a frame-rate independent rate. */
+    captured_window = NULL;
+    pending_x = pending_y = 0;
+    mem[0] = mem[1] = 0;
+    gamepad_open = 1;
+    last_look = ticks;
+    poll(keys, 1);
+    rx = (Sint16)(0.1f * 32767); /* Inside both deadzones. */
+    ticks += 16;
+    T(poll(keys, 1) == 0xFFFF && pending_x == 0 && pending_y == 0);
+    rx = 32767;
+    ry = 0;
+    ticks += 16;
+    T(poll(keys, 1) == 0xFFFF);
+    const float full_step = STICK_RATE * stick_sensitivity * 0.016f;
+    T(fabsf(pending_x - full_step) < 0.01f && pending_y == 0);
+    last_look = ticks;
+    update_camera(NULL, 0);
+    T(mem[1] == 4096 - (int)full_step && mem[0] == 0);
+    pending_x = 0;
+    rx = 0;
+    ry = -32767; /* Up decreases pitch like upward mouse motion. */
+    ticks += 1000; /* A stalled sample cannot queue more than one capped step. */
+    last_look = ticks;
+    poll(keys, 1);
+    T(fabsf(pending_y + STICK_RATE * stick_sensitivity * STICK_MAX_STEP_MS / 1000.0f) < 0.01f);
+
+    /* Stick look needs gameplay, focus, and an opened gamepad. */
+    ry = 32767;
+    last_look = 0;
+    ticks += 16;
+    poll(keys, 1);
+    T(pending_x == 0 && pending_y == 0);
+    last_look = ticks;
+    focus = NULL;
+    ticks += 16;
+    poll(keys, 1);
+    T(pending_y == 0);
+    focus = win;
+    gamepad_open = 0;
+    ticks += 16;
+    poll(keys, 1);
+    T(pending_y == 0);
+
+    /* Digital movement still works while the stick is deflected. */
+    gamepad_open = 1;
+    keys[SDL_SCANCODE_A] = 1;
+    ticks += 16;
+    T(poll(keys, 1) == (uint16_t)(0xFFFF & ~0x0400) && pending_y > 0);
+    keys[SDL_SCANCODE_A] = 0;
+
+    /* Stick down raises the stored pitch, matching downward mouse motion. */
+    pending_x = pending_y = 0;
+    mem[0] = 0;
+    ticks += 16;
+    poll(keys, 1);
+    update_camera(NULL, 0);
+    T(mem[0] == (int)(STICK_RATE * stick_sensitivity * 0.016f));
+
+    /* The capturing click drops stale mouse motion but keeps the stick. */
+    ry = 0;
+    rx = 32767;
+    pending_x = pending_y = 0;
+    mb = SDL_BUTTON_LMASK;
+    mx = 500;
+    mouse_was_down = 0;
+    ticks += 16;
+    poll(keys, 1);
+    T(captured_window == win && fabsf(pending_x - full_step) < 0.01f);
+
+    /* Captured mouse and stick motion add together. */
+    mx = 10;
+    ticks += 16;
+    poll(keys, 1);
+    T(fabsf(pending_x - (2 * full_step + 10 * mouse_sensitivity)) < 0.01f);
     return 0;
 }
