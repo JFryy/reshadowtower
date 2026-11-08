@@ -1,0 +1,17 @@
+# source-sha256: 14143dda44fa14390fe558627b27f4679ae8026ed11f3565e4308e0a23955aa3
+--- a/psxrecomp/runtime/src/data_shards.c
++++ b/psxrecomp/runtime/src/data_shards.c
+@@ -431,6 +431,13 @@
+ /* ---------- gen-time hooks ---------- */
+ 
+ int psx_datashard_enter(CPUState* cpu, uint32_t key) {
++    /* Shadow Tower: a resident hand-written override replaces the body. Its
++     * memory traffic bypasses the recorder, so an enclosing capture is void. */
++    extern int shadowtower_function_override(CPUState *cpu, uint32_t address);
++    if (shadowtower_function_override(cpu, key)) {
++        ds_poison(5);
++        return 1;
++    }
+     if (!s_enabled) return 0;
+     s_st.enters++; s_st.last_key = key;
+ 

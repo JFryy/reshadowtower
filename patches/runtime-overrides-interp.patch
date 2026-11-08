@@ -1,0 +1,31 @@
+# source-sha256: 09a9c6696c0451ed321fc56a40f958f72d328fdc3ec761326cec90f3af830cd4
+--- a/psxrecomp/runtime/src/dirty_ram_interp.c
++++ b/psxrecomp/runtime/src/dirty_ram_interp.c
+@@ -2876,6 +2876,13 @@
+      * pages overwritten by a runtime overlay (Tomba 2), not just [FLOOR, RAM). */
+     int allow_local_dirty_flow = phys_is_overlay_flow_region(phys);
+ 
++    /* Shadow Tower: overrides run before entry hooks, as in generated code.
++     * A handled call has published its resume pc; skip the body. */
++    {
++        extern int shadowtower_function_override(CPUState *cpu, uint32_t address);
++        if (shadowtower_function_override(cpu, addr)) OV_FPLOG_RET1();
++    }
++
+     /* Backend-invariant mod_function_entry hooks: generated code fires
+      * psx_mod_function_entry at listed function entries, but a mod-patched
+      * page runs here instead and would silently skip them. Fire the same hook
+@@ -3273,6 +3280,13 @@
+                  * function-entry hooks as a surfaced interpreter entry. */
+                 {
+                     extern void psx_mod_function_entry(CPUState *, uint32_t);
++                    extern int shadowtower_function_override(CPUState *, uint32_t);
++                    if (shadowtower_function_override(cpu, target)) {
++                        g_dirty_ram_blocks_run++;
++                        if (pc_entry) pc_entry->insns += (uint64_t)insns_executed;
++                        g_dirty_interp_chain_target = cpu->pc;
++                        OV_FPLOG_RET1();
++                    }
+                     psx_mod_function_entry(cpu, target);
+                 }
+                 pc = target;

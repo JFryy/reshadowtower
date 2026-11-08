@@ -29,16 +29,19 @@ IMGUI_FILES = (
 )
 PROJECT_FILES = (
     "CMakeLists.txt", "game.toml", "config.ini", "VERSION", "LICENSE",
-    "cmake/graphics.cmake", "cmake/input.cmake", "cmake/dependencies.cmake",
+    "cmake/graphics.cmake", "cmake/input.cmake", "cmake/overrides.cmake", "cmake/recompiler_overrides.cmake",
+    "cmake/dependencies.cmake",
     "cmake/generate_codegen_hash.cmake",
     "cmake/dependencies.json", "cmake/dependencies/CMakeLists.txt", "tools/dependencies.py",
-    "src/modern_controls.c", "src/modern_controls.h", "src/world_texture_filter.glsl",
+    "src/modern_controls.c", "src/modern_controls.h", "src/function_overrides.c", "src/function_overrides.h",
+    "src/world_texture_filter.glsl",
     "src/post_processing.h", "src/post_processing_gl.h", "src/post_processing.glsl",
     "src/render_scale.h", "src/render_scale_gl.h",
     "seeds/ghidra_funcs.txt", "captures/overlay_captures.json", "tools/prepare_source.py", "tools/release_cli.py", "tools/generate_aot.py",
     "tools/release_common.py", "tools/launcher_backend.py",
     "cmake/adapters.cmake", "patches/runtime-input.patch", "patches/runtime-graphics.patch",
     "patches/runtime-widescreen.patch", "patches/runtime-settings.patch", "patches/runtime-software.patch",
+    "patches/runtime-overrides.patch", "patches/runtime-overrides-interp.patch", "patches/recompiler-overrides.patch",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",
     "assets/setup/boxart.tga", "assets/setup/music.wav",
 )

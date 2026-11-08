@@ -8,6 +8,7 @@ include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")
 include(cmake/adapters.cmake)
 include(cmake/graphics.cmake)
 include(cmake/input.cmake)
+include(cmake/overrides.cmake)
 
 set(SHADOWTOWER_AOT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/generated/aot/overlays_static.c")
 if(NOT EXISTS "${SHADOWTOWER_AOT_SOURCE}")
@@ -31,7 +32,7 @@ if(NOT PSX_SDL3)
     message(FATAL_ERROR "Modern controls require SDL3. Configure with -DPSX_SDL_BACKEND=SDL3.")
 endif()
 configure_file(config.ini "${CMAKE_CURRENT_BINARY_DIR}/config.ini" COPYONLY)
-target_sources(psx-runtime PRIVATE src/modern_controls.c)
+target_sources(psx-runtime PRIVATE src/modern_controls.c src/function_overrides.c)
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     # toml11 uses std::terminate without <exception>; libc++ no longer includes it indirectly.
     set_property(SOURCE

@@ -1,0 +1,13 @@
+# source-sha256: 70f26df4cf9d5708a1324ed75963e2675baf267ba0d7dc1740aa646895f3f5ae
+--- a/psxrecomp/recompiler/src/main_psx.cpp
++++ b/psxrecomp/recompiler/src/main_psx.cpp
+@@ -356,6 +356,9 @@
+         ws_tag_funcs.insert(wscfg.ws_sprite_tag_funcs.begin(), wscfg.ws_sprite_tag_funcs.end());
+         mod_entry_funcs.insert(wscfg.mod_function_entry_funcs.begin(),
+                                wscfg.mod_function_entry_funcs.end());
++        // Shadow Tower: overlay functions take the [data_shards] entry check too,
++        // which the title routes to its function override registry.
++        ds_funcs.insert(wscfg.data_shard_funcs.begin(), wscfg.data_shard_funcs.end());
+         ws_cull_bias.insert(wscfg.ws_cull_bias_sites.begin(), wscfg.ws_cull_bias_sites.end());
+         ws_cull_range.insert(wscfg.ws_cull_range_sites.begin(), wscfg.ws_cull_range_sites.end());
+         ws_cull_a1.insert(wscfg.ws_cull_a1_sites.begin(), wscfg.ws_cull_a1_sites.end());

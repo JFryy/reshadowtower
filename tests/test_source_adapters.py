@@ -17,7 +17,8 @@ from prepare_source import apply_patch, prepare
 
 class SourceAdapterTests(unittest.TestCase):
     def test_title_patches_apply_to_pinned_sources(self):
-        for name in ("runtime-input", "runtime-graphics", "runtime-widescreen", "runtime-settings", "runtime-software"):
+        for name in ("runtime-input", "runtime-graphics", "runtime-widescreen", "runtime-settings", "runtime-software",
+                     "runtime-overrides", "runtime-overrides-interp", "recompiler-overrides"):
             with self.subTest(patch=name):
                 text = (ROOT / "patches" / f"{name}.patch").read_text(encoding="utf-8")
                 source = (framework_root() / text.splitlines()[1].removeprefix("--- a/psxrecomp/")).read_text(encoding="utf-8-sig")

@@ -22,7 +22,8 @@ export PSXRECOMP_ROOT
 python3 "$PSXRECOMP_ROOT/psxrecomp_cli.py" verify-disc \
     --config game.toml --project-root . --disc "$disc"
 cmake -S "$PSXRECOMP_ROOT/recompiler" -B build-recompiler -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release -DPSXRECOMP_ENABLE_CHD=OFF
+    -DCMAKE_BUILD_TYPE=Release -DPSXRECOMP_ENABLE_CHD=OFF \
+    -DCMAKE_PROJECT_PSXRecomp_INCLUDE="$PWD/cmake/recompiler_overrides.cmake"
 cmake --build build-recompiler --target psxrecomp-game psxrecomp-bios -j4
 python3 "$PSXRECOMP_ROOT/psxrecomp_cli.py" generate \
     --config game.toml --project-root . --disc "$disc" "${bios_args[@]}"
