@@ -20,6 +20,7 @@ int main() {
         require(!s.widescreen && s.wideRatio == 0 && s.scale == 3 && s.volume == 35);
         require(s.vsync && s.lowLatency && s.mouseSensitivity == 1.0 && s.stickSensitivity == 1.0 && s.stickDeadzone == 0.15);
         require(s.depthBuffer && s.ambientOcclusion && s.pixelLighting && s.smoothFog);
+        require(s.frameUnlock && s.targetFps == 144 && s.smoothCamera && s.smoothObjects);
         require(launcher::gameEnvironment(s)[9].second == "1" && launcher::gameEnvironment(s)[12].second == "1");
         require(!s.outputFiltering && s.fmvFilter == 0 && s.scale == 3 && !s.widescreen);
         require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::subtle);
@@ -38,6 +39,7 @@ int main() {
         require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::original);
         s.vsync = false; s.lowLatency = false; s.mouseSensitivity = 0.05; s.stickSensitivity = 2.5; s.stickDeadzone = 0.3;
         s.depthBuffer = false; s.ambientOcclusion = false; s.pixelLighting = false; s.smoothFog = false;
+        s.frameUnlock = false; s.targetFps = 90; s.smoothCamera = false; s.smoothObjects = false;
         launcher::applyGraphicsPreset(s, launcher::GraphicsPreset::balanced);
         require(launcher::graphicsPreset(s) == launcher::GraphicsPreset::balanced);
         require(s.scale == 2 && s.filter && s.geometry && !s.perspective);
@@ -59,6 +61,18 @@ int main() {
         require(environment[10].first == "SHADOWTOWER_AMBIENT_OCCLUSION" && environment[10].second == "0");
         require(environment[11].first == "SHADOWTOWER_PIXEL_LIGHTING" && environment[11].second == "0");
         require(environment[12].first == "SHADOWTOWER_SMOOTH_FOG" && environment[12].second == "0");
+        require(environment[13].first == "SHADOWTOWER_FRAME_UNLOCK" && environment[13].second == "0");
+        require(environment[14].first == "SHADOWTOWER_TARGET_FPS" && environment[14].second == "90");
+        require(environment[15].first == "SHADOWTOWER_SMOOTH_CAMERA" && environment[15].second == "0");
+        require(environment[16].first == "SHADOWTOWER_SMOOTH_OBJECTS" && environment[16].second == "0");
+        {
+            auto unlocked = s;
+            unlocked.vsync = true;
+            unlocked.frameUnlock = true;
+            require(launcher::gameEnvironment(unlocked)[1].second == "0");
+            unlocked.frameUnlock = false;
+            require(launcher::gameEnvironment(unlocked)[1].second == "1");
+        }
         launcher::save(root, s);
         const auto doc = launcher::parse(root / "build-release/settings.toml");
         require(toml::find<int>(doc, "video", "unknown") == 99);
@@ -69,6 +83,7 @@ int main() {
         {
             const auto reloaded = launcher::load(root);
             require(!reloaded.depthBuffer && !reloaded.ambientOcclusion && !reloaded.pixelLighting && !reloaded.smoothFog);
+            require(!reloaded.frameUnlock && reloaded.targetFps == 90 && !reloaded.smoothCamera && !reloaded.smoothObjects);
         }
         require(toml::find<double>(doc, "launcher", "stick_deadzone") == 0.3);
         require(toml::find<std::string>(doc, "audio", "other") == "kept");
@@ -195,6 +210,13 @@ int main() {
             require(rejected);
         }
         s.mouseSensitivity = 1.0;
+        for (int invalid : {19, 361}) {
+            s.targetFps = invalid;
+            rejected = false;
+            try { launcher::save(root, s); } catch (const std::invalid_argument&) { rejected = true; }
+            require(rejected);
+        }
+        s.targetFps = 60;
         for (double invalid : {0.099, 5.001, std::numeric_limits<double>::quiet_NaN()}) {
             s.stickSensitivity = invalid;
             rejected = false;

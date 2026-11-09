@@ -1,0 +1,25 @@
+# source-sha256: 4f851ab784fdadd8263c5147b76edc23cfcaa5c9650b7751574080b22c47e22e
+--- a/psxrecomp/runtime/include/psx_cyc.h
++++ b/psxrecomp/runtime/include/psx_cyc.h
+@@ -47,2 +47,8 @@
+ 
++/* Shadow Tower: guest cycles charged per 256 block-charged CPU cycles (256 =
++ * stock), so more guest work fits in one VBlank while devices keep real time.
++ * Byte loads, slow loads, I-cache refills and interpreted code charge in full. */
++extern uint32_t g_shadowtower_cycle_scale;
++extern uint32_t g_shadowtower_cycle_carry;
++
+ #if defined(PSX_OVERLAY_DLL_BUILD)
+@@ -93,2 +99,12 @@
+     if (cycles == 0u) return;
++#if defined(__GNUC__) || defined(__clang__)
++    if (__builtin_expect(g_shadowtower_cycle_scale != 256u, 0)) {
++#else
++    if (g_shadowtower_cycle_scale != 256u) {
++#endif
++        const uint64_t scaled = (uint64_t)cycles * g_shadowtower_cycle_scale + g_shadowtower_cycle_carry;
++        g_shadowtower_cycle_carry = (uint32_t)(scaled & 255u);
++        cycles = (uint32_t)(scaled >> 8);
++        if (cycles == 0u) return;
++    }
+ #if defined(PSX_OVERLAY_DLL_BUILD)

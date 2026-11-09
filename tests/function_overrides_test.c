@@ -72,6 +72,13 @@ static void via_guest(CPUState *cpu) {
     memcpy(ram + 0x100, &cpu->gpr[2], 4);
 }
 
+/* Post-hook: the generated a0 + a1, plus ten. */
+#define POST_HOOK 0x80008000u
+static void post_hook(CPUState *cpu) {
+    if (!shadowtower_call_original(cpu, POST_HOOK)) return;
+    cpu->gpr[2] += 10;
+}
+
 static Override *find(const char *id) {
     for (size_t i = 0; i < override_count; ++i)
         if (!strcmp(overrides[i].id, id)) return &overrides[i];
@@ -138,7 +145,13 @@ int main(void) {
         T(hook(&cpu, 0xA0001000) && cpu.gpr[2] == 5 && cpu.pc == 0x80010040);
         T(hook(&cpu, 0x00001000) && cpu.pc == 0x80010040);
         T(guest_call_tests(checking) == 0);
-        return generated_calls == 0 ? 0 : 1;
+        T(generated_calls == 0);
+        /* The original body runs under its own override, which is not re-entered. */
+        T(shadowtower_register_override("post", POST_HOOK, resident, 1, post_hook));
+        T(call(&cpu, POST_HOOK, &handled) == 15 && handled && nested_result == 0);
+        T(generated_calls == 1 && cpu.pc == 0x80010040 && bypass_address == 0);
+        T(call(&cpu, POST_HOOK, &handled) == 15 && generated_calls == 2);
+        return 0;
     }
 
     /* The check keeps the generated result and ignores dead stack and temporaries. */

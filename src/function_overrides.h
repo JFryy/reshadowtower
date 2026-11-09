@@ -53,6 +53,12 @@ int shadowtower_register_override(const char *id, uint32_t address,
  * cpu. */
 int shadowtower_call_guest(struct CPUState *cpu, uint32_t address, uint32_t return_address);
 
+/* Run the generated function an override replaces, from inside that override,
+ * returning to the override's caller. Arguments are whatever cpu holds, so an
+ * override can adjust guest state before and after (a pre/post hook). Returns
+ * as shadowtower_call_guest does. */
+int shadowtower_call_original(struct CPUState *cpu, uint32_t address);
+
 /* Called by the patched runtime at function entry. Returns 1 after running
  * the override and setting cpu->pc to the caller's $ra, 0 to run the body. */
 int shadowtower_function_override(struct CPUState *cpu, uint32_t address);

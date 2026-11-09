@@ -50,6 +50,8 @@ static Snapshot *entry_state, *override_state;
 enum { CHECK_IDLE, CHECK_OVERRIDE, CHECK_GENERATED };
 static int check_phase = CHECK_IDLE;
 static int check_depth;
+/* The next entry at this address runs its generated body (shadowtower_call_original). */
+static uint32_t bypass_address;
 
 static int fingerprint_resident(const Override *item) {
     for (size_t i = 0; i < item->fingerprint_count; ++i)
@@ -190,6 +192,10 @@ static void run_checked(Override *item, CPUState *cpu, uint32_t address) {
 
 int shadowtower_function_override(CPUState *cpu, uint32_t address) {
     if (!override_count) return 0;
+    if (bypass_address && ((bypass_address ^ address) & PHYSICAL_ADDRESS_MASK) == 0) {
+        bypass_address = 0;
+        return 0;
+    }
     /* An exception unwind can skip the reset in run_checked; a live check is always shallower. */
     if (check_phase != CHECK_IDLE && g_psx_dispatch_depth <= check_depth) check_phase = CHECK_IDLE;
     /* The reference run must be entirely generated code. */
@@ -214,6 +220,13 @@ int shadowtower_call_guest(CPUState *cpu, uint32_t address, uint32_t return_addr
     cpu->pc = 0;
     psx_dispatch_call(cpu, address, return_address);
     return !psx_call_contract(cpu, return_address, sp);
+}
+
+int shadowtower_call_original(CPUState *cpu, uint32_t address) {
+    bypass_address = address;
+    const int returned = shadowtower_call_guest(cpu, address, cpu->gpr[31]);
+    bypass_address = 0; /* Not consumed when the entry has no override check. */
+    return returned;
 }
 
 static void report_checks(void) {
