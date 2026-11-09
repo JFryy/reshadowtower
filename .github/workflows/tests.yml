@@ -23,7 +23,7 @@ jobs:
         run: |
           pacman -Syu --noconfirm --needed \
             git cmake ninja gcc clang python uv sdl3 mesa \
-            xorg-server-xvfb xorg-xauth glslang shellcheck actionlint
+            xorg-server-xvfb xorg-xauth glslang
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
@@ -31,34 +31,6 @@ jobs:
         run: uv sync --locked
       - name: Resolve pinned framework dependencies
         run: uv run python tools/dependencies.py
-      - name: Lint Python with ruff
-        run: uv run ruff check
-      - name: Lint shell scripts with shellcheck
-        run: shellcheck scripts/*.sh
-      - name: Lint GitHub Actions workflows with actionlint
-        run: actionlint
-      - name: Lint CMake with cmake-lint
-        run: |
-          uv run cmake-lint CMakeLists.txt cmake/*.cmake \
-            launcher/CMakeLists.txt packaging/windows/CMakeLists.txt \
-            cmake/dependencies/CMakeLists.txt
-      - name: Lint runtime C with gcc warnings and clang-tidy
-        run: |
-          framework=build-dependencies/_deps/psxrecomp-src
-          stubs=$(mktemp -d)
-          touch "$stubs/mod_plugins.h" "$stubs/psx_keybinds.h" "$stubs/cpu_state.h"
-          read -ra sdl_flags <<< "$(pkg-config --cflags sdl3 | sed 's/-I/-isystem/g')"
-          checks='clang-analyzer-*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling'
-          runtime_flags=(-std=gnu11 -Wall -Wextra -Werror -DPSX_SDL3=1 -DPSX_NATIVE_BUILD=1
-            -isystem "$framework/runtime/include" -isystem "$framework/runtime/src"
-            "${sdl_flags[@]}" -I src)
-          gcc -fsyntax-only "${runtime_flags[@]}" src/*.c
-          clang-tidy --checks="$checks" --warnings-as-errors='*' src/*.c -- "${runtime_flags[@]}"
-          clang-tidy --checks="$checks" --warnings-as-errors='*' tests/modern_controls_test.c -- \
-            -std=c11 -Wall -Wextra -Werror "${sdl_flags[@]}" -I "$stubs" -I src \
-            -isystem "$framework/runtime/include"
-          clang-tidy --checks="$checks" --warnings-as-errors='*' tests/function_overrides_test.c -- \
-            -std=c11 -Wall -Wextra -Werror -I "$stubs" -I src
       - name: Build, test and lint the launcher
         run: |
           cmake -S launcher -B build-launcher-ci -G Ninja -DBUILD_TESTING=ON \

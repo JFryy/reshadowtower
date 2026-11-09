@@ -1,0 +1,111 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python (ruff)
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel-20261101.0.620205@sha256:2de80105abb49f813a85393c6758a4334deb6bcec4a2411bd2f059c0bee6ee4c
+    timeout-minutes: 10
+    steps:
+      - name: Install tools
+        run: pacman -Syu --noconfirm --needed git python uv
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install locked Python dependencies
+        run: uv sync --locked
+      - name: Lint Python with ruff
+        run: uv run ruff check
+
+  shell:
+    name: Shell (shellcheck)
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel-20261101.0.620205@sha256:2de80105abb49f813a85393c6758a4334deb6bcec4a2411bd2f059c0bee6ee4c
+    timeout-minutes: 10
+    steps:
+      - name: Install tools
+        run: pacman -Syu --noconfirm --needed git shellcheck
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Lint shell scripts with shellcheck
+        run: shellcheck scripts/*.sh
+
+  actions:
+    name: Workflows (actionlint)
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel-20261101.0.620205@sha256:2de80105abb49f813a85393c6758a4334deb6bcec4a2411bd2f059c0bee6ee4c
+    timeout-minutes: 10
+    steps:
+      - name: Install tools
+        run: pacman -Syu --noconfirm --needed git actionlint shellcheck
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Lint GitHub Actions workflows with actionlint
+        run: actionlint
+
+  cmake:
+    name: CMake (cmake-lint)
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel-20261101.0.620205@sha256:2de80105abb49f813a85393c6758a4334deb6bcec4a2411bd2f059c0bee6ee4c
+    timeout-minutes: 10
+    steps:
+      - name: Install tools
+        run: pacman -Syu --noconfirm --needed git python uv
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install locked Python dependencies
+        run: uv sync --locked
+      - name: Lint CMake with cmake-lint
+        run: |
+          uv run cmake-lint CMakeLists.txt cmake/*.cmake \
+            launcher/CMakeLists.txt packaging/windows/CMakeLists.txt \
+            cmake/dependencies/CMakeLists.txt
+
+  c:
+    name: Runtime C (gcc, clang-tidy)
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel-20261101.0.620205@sha256:2de80105abb49f813a85393c6758a4334deb6bcec4a2411bd2f059c0bee6ee4c
+    timeout-minutes: 15
+    steps:
+      - name: Install tools
+        run: pacman -Syu --noconfirm --needed git cmake ninja gcc clang python uv sdl3
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install locked Python dependencies
+        run: uv sync --locked
+      - name: Resolve pinned framework dependencies
+        run: uv run python tools/dependencies.py
+      - name: Lint runtime C with gcc warnings and clang-tidy
+        run: |
+          framework=build-dependencies/_deps/psxrecomp-src
+          stubs=$(mktemp -d)
+          touch "$stubs/mod_plugins.h" "$stubs/psx_keybinds.h" "$stubs/cpu_state.h"
+          read -ra sdl_flags <<< "$(pkg-config --cflags sdl3 | sed 's/-I/-isystem/g')"
+          checks='clang-analyzer-*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling'
+          runtime_flags=(-std=gnu11 -Wall -Wextra -Werror -DPSX_SDL3=1 -DPSX_NATIVE_BUILD=1
+            -isystem "$framework/runtime/include" -isystem "$framework/runtime/src"
+            "${sdl_flags[@]}" -I src)
+          gcc -fsyntax-only "${runtime_flags[@]}" src/*.c
+          clang-tidy --checks="$checks" --warnings-as-errors='*' src/*.c -- "${runtime_flags[@]}"
+          clang-tidy --checks="$checks" --warnings-as-errors='*' tests/modern_controls_test.c -- \
+            -std=c11 -Wall -Wextra -Werror "${sdl_flags[@]}" -I "$stubs" -I src \
+            -isystem "$framework/runtime/include"
+          clang-tidy --checks="$checks" --warnings-as-errors='*' tests/function_overrides_test.c -- \
+            -std=c11 -Wall -Wextra -Werror -I "$stubs" -I src
