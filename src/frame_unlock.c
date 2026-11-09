@@ -4,6 +4,7 @@
 #include "frame_unlock.h"
 #include "frame_clock.h"
 #include "function_overrides.h"
+#include "gameplay_image.h"
 #include "modern_controls.h"
 #include "renderer_options.h"
 #include "settings_ranges.h"
@@ -44,6 +45,22 @@ extern uint32_t g_shadowtower_cycle_carry;
 #define DRAW_MODEL 0x80022678u /* draws one model at (pos, rot) for every entity pool */
 
 #define RENDER_COUNTER 0x8017BD50u /* u8: frames drawn this second */
+/* Hit and blind flashes: two channels the simulation accumulates into and RENDER draws once,
+ * then clears (0x8002181C, 0x800218D8). */
+#define FLASH_STATE 0x8017BD66u
+#define FLASH_STATE_BYTES 16u
+/* Fourth entity pool: steps a shared counter and each entry's animation frame on every draw. */
+#define ANIMATED_POOL 0x800255F0u
+#define ANIMATED_POOL_RETURN 0x80026D64u
+#define ANIMATED_POOL_COUNTER 0x8015C488u
+#define ANIMATED_POOL_FRAMES 0x8018E31Fu /* u8 per entry */
+#define ANIMATED_POOL_ENTRIES 128u
+#define ANIMATED_POOL_STRIDE 0x18u
+/* Full-screen transition: steps once per draw and switches state after 16 steps. */
+#define TRANSITION 0x80028784u
+#define TRANSITION_RETURN 0x80026D90u
+#define TRANSITION_STATE 0x8017BEA6u
+#define TRANSITION_STATE_BYTES 4u
 #define VBLANK_FLAG 0x8008820Cu    /* set by the root-counter callback, cleared by FRAME_WAIT */
 #define LOOP_FLAG 0x80199144u      /* u8 the main loop clears in a delay slot every iteration */
 #define AREA_LOADING 0x801B5920u   /* s16: nonzero while an area loads */
@@ -73,9 +90,6 @@ extern uint32_t g_shadowtower_cycle_carry;
 #define WATCHDOG_MISSES 3u
 /* Host lag past which the guest and wall clocks are re-anchored (a stall or a save-state load). */
 #define REANCHOR_SECONDS 0.25
-
-/* Gameplay image words that every override's fingerprint shares. */
-#define GAMEPLAY_WORDS {0x80014BD4u, 0x0C00592Du}, {0x80014C48u, 0x0C009ABFu}, {0x80026D90u, 0x0C005DA0u}
 
 typedef struct Gate {
     const char *id;
@@ -147,6 +161,8 @@ static ShadowTowerTickClock clock_state;
 static float phase;
 static uint64_t next_frame, last_loop_head, last_main_flip, last_present;
 static uint8_t saved_loop_flag;
+static uint8_t flash_state[FLASH_STATE_BYTES];
+static int flash_saved;
 static uint64_t anchor_wall_ns, anchor_guest;
 static uint64_t present_ns; /* this frame's present, excluded from its render time */
 
@@ -164,6 +180,7 @@ static uint64_t now_cycles(void) { return psx_get_cycle_count(); }
 
 static void reset_smoothing(void) {
     camera_valid = 0;
+    flash_saved = 0;
     memset(entities, 0, sizeof entities);
 }
 
@@ -381,6 +398,25 @@ static double host_lag(uint64_t now) {
 
 static int wait_for_frame(struct CPUState *cpu, uint32_t resume);
 
+static void read_bytes(uint32_t address, uint8_t *bytes, uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i) bytes[i] = psx_mod_read_byte(address + i);
+}
+
+static void write_bytes(uint32_t address, const uint8_t *bytes, uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i) psx_mod_write_byte(address + i, bytes[i]);
+}
+
+/* A tick's flash shows on every frame of the tick, as it stays on screen for the
+ * whole tick at stock pacing. */
+static void replay_flash(void) {
+    if (tick) {
+        read_bytes(FLASH_STATE, flash_state, FLASH_STATE_BYTES);
+        flash_saved = 1;
+    } else if (flash_saved) {
+        write_bytes(FLASH_STATE, flash_state, FLASH_STATE_BYTES);
+    }
+}
+
 static void render(struct CPUState *cpu) {
     if (!engaged || cpu->gpr[31] != RENDER_RETURN) {
         shadowtower_call_original(cpu, RENDER);
@@ -398,6 +434,7 @@ static void render(struct CPUState *cpu) {
     }
     phase = shadowtower_tick_phase(&clock_state, now);
     if (smooth_camera) camera_begin(cpu);
+    replay_flash();
     const uint8_t counter = psx_mod_read_byte(RENDER_COUNTER);
     draw_count = 0;
     in_main_render = 1;
@@ -409,6 +446,34 @@ static void render(struct CPUState *cpu) {
     if (!returned) return; /* A non-local exit (such as a save-state load) owns guest state now. */
     restore_camera();
     if (!tick) psx_mod_write_byte(RENDER_COUNTER, counter);
+}
+
+/* Frames between ticks draw the pool without stepping its animation. */
+static void animated_pool(struct CPUState *cpu) {
+    if (!in_main_render || tick || cpu->gpr[31] != ANIMATED_POOL_RETURN) {
+        shadowtower_call_original(cpu, ANIMATED_POOL);
+        return;
+    }
+    const uint32_t counter = psx_mod_read_word(ANIMATED_POOL_COUNTER);
+    uint8_t frames[ANIMATED_POOL_ENTRIES];
+    for (uint32_t i = 0; i < ANIMATED_POOL_ENTRIES; ++i)
+        frames[i] = psx_mod_read_byte(ANIMATED_POOL_FRAMES + i * ANIMATED_POOL_STRIDE);
+    if (!shadowtower_call_original(cpu, ANIMATED_POOL)) return;
+    psx_mod_write_word(ANIMATED_POOL_COUNTER, counter);
+    for (uint32_t i = 0; i < ANIMATED_POOL_ENTRIES; ++i)
+        psx_mod_write_byte(ANIMATED_POOL_FRAMES + i * ANIMATED_POOL_STRIDE, frames[i]);
+}
+
+/* Frames between ticks draw the transition without stepping it. */
+static void transition(struct CPUState *cpu) {
+    if (!in_main_render || tick || cpu->gpr[31] != TRANSITION_RETURN) {
+        shadowtower_call_original(cpu, TRANSITION);
+        return;
+    }
+    uint8_t state[TRANSITION_STATE_BYTES];
+    read_bytes(TRANSITION_STATE, state, TRANSITION_STATE_BYTES);
+    if (!shadowtower_call_original(cpu, TRANSITION)) return;
+    write_bytes(TRANSITION_STATE, state, TRANSITION_STATE_BYTES);
 }
 
 static void texture_animation(struct CPUState *cpu) {
@@ -640,8 +705,7 @@ static void read_target_fps(void) {
 }
 
 static int register_all(void) {
-#define FINGERPRINT(address, first, second) \
-    (ShadowTowerCodeWord[]){GAMEPLAY_WORDS, {(address), (first)}, {(address) + 4u, (second)}}, 5
+#define FINGERPRINT SHADOWTOWER_GAMEPLAY_FINGERPRINT
     int ok = shadowtower_register_override("frame-unlock.loop-head", LOOP_HEAD,
                                            FINGERPRINT(LOOP_HEAD, 0x3C028009u, 0x24458200u), loop_head);
     ok &= shadowtower_register_override("frame-unlock.render", RENDER,
@@ -654,6 +718,10 @@ static int register_all(void) {
                                         FINGERPRINT(VSYNC, 0x3C028008u, 0x8C426A98u), vsync);
     ok &= shadowtower_register_override("frame-unlock.frame-wait", FRAME_WAIT,
                                         FINGERPRINT(FRAME_WAIT, 0x27BDFFE8u, 0x3C028009u), frame_wait);
+    ok &= shadowtower_register_override("frame-unlock.animated-pool", ANIMATED_POOL,
+                                        FINGERPRINT(ANIMATED_POOL, 0x27BDFF98u, 0xAFB10044u), animated_pool);
+    ok &= shadowtower_register_override("frame-unlock.transition", TRANSITION,
+                                        FINGERPRINT(TRANSITION, 0x27BDFFA8u, 0x3C028008u), transition);
     ok &= shadowtower_register_override("frame-unlock.draw-model", DRAW_MODEL,
                                         FINGERPRINT(DRAW_MODEL, 0x27BDFF30u, 0xAFB100ACu), draw_model);
     for (int i = 0; i < GATE_COUNT; ++i)

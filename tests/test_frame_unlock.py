@@ -7,17 +7,20 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "src/frame_unlock.c"
+SOURCES = (ROOT / "src/frame_unlock.c", ROOT / "src/wide_view.c")
 
 
 def override_addresses():
-    """Every guest address src/frame_unlock.c registers an override for."""
-    source = SOURCE.read_text()
-    defines = {name: int(value, 16) for name, value in re.findall(r"#define (\w+) (0x[0-9A-Fa-f]+)u", source)}
-    names = re.findall(r'shadowtower_register_override\("[^"]+", (\w+),', source)
-    addresses = {defines[name] for name in names}
-    gates = re.search(r"static const Gate gates\[GATE_COUNT\] = \{(.*?)\n\};", source, re.DOTALL).group(1)
-    addresses |= {int(value, 16) for value in re.findall(r'\{"[^"]+", (0x[0-9A-Fa-f]+)u,', gates)}
+    """Every guest address the override modules register."""
+    addresses = set()
+    for path in SOURCES:
+        source = path.read_text()
+        defines = {name: int(value, 16) for name, value in re.findall(r"#define (\w+) (0x[0-9A-Fa-f]+)u", source)}
+        names = re.findall(r'shadowtower_register_override\("[^"]+", (\w+),', source)
+        addresses |= {defines[name] for name in names}
+        gates = re.search(r"static const Gate gates\[GATE_COUNT\] = \{(.*?)\n\};", source, re.DOTALL)
+        if gates:
+            addresses |= {int(value, 16) for value in re.findall(r'\{"[^"]+", (0x[0-9A-Fa-f]+)u,', gates.group(1))}
     return addresses
 
 
@@ -26,7 +29,7 @@ class FrameUnlockTests(unittest.TestCase):
         config = tomllib.loads((ROOT / "game.toml").read_text())
         listed = {int(value, 16) for value in config["data_shards"]["funcs"]}
         addresses = override_addresses()
-        self.assertEqual(len(addresses), 17)
+        self.assertEqual(len(addresses), 23)
         self.assertEqual(listed, addresses)
 
     def test_generated_code_has_entry_checks(self):

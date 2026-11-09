@@ -42,6 +42,9 @@ inline constexpr Range<int> volumeRange{SHADOWTOWER_VOLUME_MIN, SHADOWTOWER_VOLU
 inline constexpr Range<int> scaleRange{1, SHADOWTOWER_MAX_INTERNAL_SCALE, 3};
 inline constexpr Range<int> targetFpsRange{SHADOWTOWER_TARGET_FPS_MIN, SHADOWTOWER_TARGET_FPS_MAX,
     SHADOWTOWER_TARGET_FPS_DEFAULT};
+inline constexpr Range<int> fovRange{SHADOWTOWER_FOV_MIN, SHADOWTOWER_FOV_MAX, SHADOWTOWER_FOV_DEFAULT};
+inline constexpr Range<int> drawDistanceRange{SHADOWTOWER_DRAW_DISTANCE_MIN, SHADOWTOWER_DRAW_DISTANCE_MAX,
+    SHADOWTOWER_DRAW_DISTANCE_DEFAULT};
 inline constexpr int maxRenderScale = scaleRange.high;
 inline constexpr Range<double> mouseSensitivityRange{SHADOWTOWER_MOUSE_SENSITIVITY_MIN,
     SHADOWTOWER_MOUSE_SENSITIVITY_MAX, SHADOWTOWER_MOUSE_SENSITIVITY_DEFAULT};
@@ -129,6 +132,8 @@ struct Settings {
     bool depthBuffer = true, ambientOcclusion = true, pixelLighting = true, smoothFog = true;
     bool frameUnlock = true, smoothCamera = true, smoothObjects = true;
     int targetFps = targetFpsRange.fallback;
+    int fov = fovRange.fallback;
+    int drawDistance = drawDistanceRange.fallback;
     double mouseSensitivity = mouseSensitivityRange.fallback;
     double stickSensitivity = stickSensitivityRange.fallback, stickDeadzone = stickDeadzoneRange.fallback;
     PostFx postFx = postFxPresetValues(PostFxPreset::subtle);
@@ -148,6 +153,9 @@ inline std::string invalidSetting(const Settings& s) {
     if (!volumeRange.contains(s.volume)) return describe("Volume", s.volume, volumeRange.low, volumeRange.high);
     if (!targetFpsRange.contains(s.targetFps))
         return describe("Target frame rate", s.targetFps, targetFpsRange.low, targetFpsRange.high);
+    if (!fovRange.contains(s.fov)) return describe("Field of view", s.fov, fovRange.low, fovRange.high);
+    if (!drawDistanceRange.contains(s.drawDistance))
+        return describe("Draw distance", s.drawDistance, drawDistanceRange.low, drawDistanceRange.high);
     const std::pair<const char*, std::pair<double, Range<double>>> doubles[] = {
         {"Mouse sensitivity", {s.mouseSensitivity, mouseSensitivityRange}},
         {"Stick sensitivity", {s.stickSensitivity, stickSensitivityRange}},
@@ -161,7 +169,7 @@ inline std::string invalidSetting(const Settings& s) {
     return {};
 }
 // Translate launcher preferences into overrides consumed by the game runtime.
-inline std::array<std::pair<std::string, std::string>, 17> gameEnvironment(const Settings& s) {
+inline std::array<std::pair<std::string, std::string>, 19> gameEnvironment(const Settings& s) {
     std::string postFx = "0";
     if (s.postFx.enabled) {
         std::ostringstream out;
@@ -189,7 +197,9 @@ inline std::array<std::pair<std::string, std::string>, 17> gameEnvironment(const
              {"SHADOWTOWER_FRAME_UNLOCK", s.frameUnlock ? "1" : "0"},
              {"SHADOWTOWER_TARGET_FPS", std::to_string(s.targetFps)},
              {"SHADOWTOWER_SMOOTH_CAMERA", s.smoothCamera ? "1" : "0"},
-             {"SHADOWTOWER_SMOOTH_OBJECTS", s.smoothObjects ? "1" : "0"}}};
+             {"SHADOWTOWER_SMOOTH_OBJECTS", s.smoothObjects ? "1" : "0"},
+             {"SHADOWTOWER_FOV", std::to_string(s.fov)},
+             {"SHADOWTOWER_DRAW_DISTANCE", std::to_string(s.drawDistance)}}};
 }
 // Presets alter only graphics quality; custom values and display preferences survive.
 enum class GraphicsPreset { performance, balanced, quality, custom };
@@ -262,6 +272,10 @@ inline void overlay(Settings& s, const toml::value& root) {
         s.smoothObjects = toml::find_or(options, "smooth_objects", s.smoothObjects);
         const int targetFps = toml::find_or(options, "target_fps", s.targetFps);
         if (targetFpsRange.contains(targetFps)) s.targetFps = targetFps;
+        const int fov = toml::find_or(options, "field_of_view", s.fov);
+        if (fovRange.contains(fov)) s.fov = fov;
+        const int drawDistance = toml::find_or(options, "draw_distance", s.drawDistance);
+        if (drawDistanceRange.contains(drawDistance)) s.drawDistance = drawDistance;
         const auto ranged = [&](const char* key, double& target, const Range<double>& range) {
             const double value = toml::find_or(options, key, target);
             if (range.contains(value)) target = value;
@@ -357,6 +371,8 @@ inline void save(const fs::path& workspace, const Settings& s) {
     doc["launcher"]["target_fps"] = s.targetFps;
     doc["launcher"]["smooth_camera"] = s.smoothCamera;
     doc["launcher"]["smooth_objects"] = s.smoothObjects;
+    doc["launcher"]["field_of_view"] = s.fov;
+    doc["launcher"]["draw_distance"] = s.drawDistance;
     doc["launcher"]["mouse_sensitivity"] = s.mouseSensitivity;
     doc["launcher"]["stick_sensitivity"] = s.stickSensitivity;
     doc["launcher"]["stick_deadzone"] = s.stickDeadzone;

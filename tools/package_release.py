@@ -36,6 +36,7 @@ PROJECT_FILES = (
     "cmake/dependencies.json", "cmake/dependencies/CMakeLists.txt", "tools/dependencies.py",
     "src/modern_controls.c", "src/modern_controls.h", "src/function_overrides.c", "src/function_overrides.h",
     "src/frame_unlock.c", "src/frame_unlock.h", "src/frame_clock.h",
+    "src/wide_view.c", "src/gameplay_image.h",
     "src/world_texture_filter.glsl",
     "src/post_processing.h", "src/post_processing_gl.h", "src/post_processing.glsl",
     "src/render_scale.h", "src/render_scale_gl.h", "src/settings_ranges.h",

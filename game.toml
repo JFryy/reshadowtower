@@ -42,13 +42,15 @@ strict = true
 mod_function_entry_funcs = ["0x80041D4C"]
 
 # Entry checks that route these functions to src/function_overrides.c: the
-# frame-rate unlock hooks in src/frame_unlock.c.
+# frame-rate unlock hooks in src/frame_unlock.c and the view hooks in
+# src/wide_view.c.
 [data_shards]
 funcs = [
   "0x800164B4", "0x80016508", "0x80042D74", "0x80050768", "0x8004E324",
   "0x80053AA4", "0x8003BC40", "0x8005735C", "0x800456F8", "0x80045FFC",
   "0x80058620", "0x80026AFC", "0x80016A14", "0x800175A4", "0x8001535C",
-  "0x80022678", "0x80077104",
+  "0x80022678", "0x80077104", "0x80033110", "0x8001C60C", "0x80021518",
+  "0x80021AC4", "0x800255F0", "0x80028784",
 ]
 
 [runtime]
@@ -76,9 +78,9 @@ pgxp_tolerance = 1.0
 # Shadow Tower projects 3D geometry but has no sprite-tag gameplay hooks.
 # Without this detector, even gameplay is treated as a 4:3 menu.
 gte_game_mode = true
-# Project the wider view into the original framebuffer. The separate wide
-# surface exposes missing edge geometry and incomplete screen-space effects.
-native_wide = false
+# Render the wider view on its own surface. src/wide_view.c keeps edge blocks
+# and full-screen fills covering it.
+native_wide = true
 
 [controller]
 default_mode = "digital"

@@ -21,6 +21,7 @@ int main() {
         require(s.vsync && s.lowLatency && s.mouseSensitivity == 1.0 && s.stickSensitivity == 1.0 && s.stickDeadzone == 0.15);
         require(s.depthBuffer && s.ambientOcclusion && s.pixelLighting && s.smoothFog);
         require(s.frameUnlock && s.targetFps == 144 && s.smoothCamera && s.smoothObjects);
+        require(s.fov == 56 && s.drawDistance == 100);
         require(launcher::gameEnvironment(s)[9].second == "1" && launcher::gameEnvironment(s)[12].second == "1");
         require(!s.outputFiltering && s.fmvFilter == 0 && s.scale == 3 && !s.widescreen);
         require(launcher::postFxPreset(s.postFx) == launcher::PostFxPreset::subtle);
@@ -40,6 +41,7 @@ int main() {
         s.vsync = false; s.lowLatency = false; s.mouseSensitivity = 0.05; s.stickSensitivity = 2.5; s.stickDeadzone = 0.3;
         s.depthBuffer = false; s.ambientOcclusion = false; s.pixelLighting = false; s.smoothFog = false;
         s.frameUnlock = false; s.targetFps = 90; s.smoothCamera = false; s.smoothObjects = false;
+        s.fov = 90; s.drawDistance = 250;
         launcher::applyGraphicsPreset(s, launcher::GraphicsPreset::balanced);
         require(launcher::graphicsPreset(s) == launcher::GraphicsPreset::balanced);
         require(s.scale == 2 && s.filter && s.geometry && !s.perspective);
@@ -63,6 +65,8 @@ int main() {
         require(environment[12].first == "SHADOWTOWER_SMOOTH_FOG" && environment[12].second == "0");
         require(environment[13].first == "SHADOWTOWER_FRAME_UNLOCK" && environment[13].second == "0");
         require(environment[14].first == "SHADOWTOWER_TARGET_FPS" && environment[14].second == "90");
+        require(environment[17].first == "SHADOWTOWER_FOV" && environment[17].second == "90");
+        require(environment[18].first == "SHADOWTOWER_DRAW_DISTANCE" && environment[18].second == "250");
         require(environment[15].first == "SHADOWTOWER_SMOOTH_CAMERA" && environment[15].second == "0");
         require(environment[16].first == "SHADOWTOWER_SMOOTH_OBJECTS" && environment[16].second == "0");
         {
@@ -84,6 +88,7 @@ int main() {
             const auto reloaded = launcher::load(root);
             require(!reloaded.depthBuffer && !reloaded.ambientOcclusion && !reloaded.pixelLighting && !reloaded.smoothFog);
             require(!reloaded.frameUnlock && reloaded.targetFps == 90 && !reloaded.smoothCamera && !reloaded.smoothObjects);
+            require(reloaded.fov == 90 && reloaded.drawDistance == 250);
         }
         require(toml::find<double>(doc, "launcher", "stick_deadzone") == 0.3);
         require(toml::find<std::string>(doc, "audio", "other") == "kept");
@@ -217,6 +222,20 @@ int main() {
             require(rejected);
         }
         s.targetFps = 60;
+        for (int invalid : {49, 111}) {
+            s.fov = invalid;
+            rejected = false;
+            try { launcher::save(root, s); } catch (const std::invalid_argument&) { rejected = true; }
+            require(rejected);
+        }
+        s.fov = 56;
+        for (int invalid : {99, 401}) {
+            s.drawDistance = invalid;
+            rejected = false;
+            try { launcher::save(root, s); } catch (const std::invalid_argument&) { rejected = true; }
+            require(rejected);
+        }
+        s.drawDistance = 100;
         for (double invalid : {0.099, 5.001, std::numeric_limits<double>::quiet_NaN()}) {
             s.stickSensitivity = invalid;
             rejected = false;

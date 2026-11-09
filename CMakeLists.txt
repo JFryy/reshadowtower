@@ -60,7 +60,8 @@ endif()
 configure_file(config.ini "${CMAKE_CURRENT_BINARY_DIR}/config.ini" COPYONLY)
 target_sources(
   psx-runtime PRIVATE src/modern_controls.c src/function_overrides.c
-                      src/frame_unlock.c "${SHADOWTOWER_INCLUDE_DIR}/psx_cyc.h")
+                      src/frame_unlock.c src/wide_view.c
+                      "${SHADOWTOWER_INCLUDE_DIR}/psx_cyc.h")
 target_include_directories(psx-runtime BEFORE
                            PRIVATE "${SHADOWTOWER_INCLUDE_DIR}")
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")

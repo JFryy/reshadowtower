@@ -27,6 +27,17 @@
 #define SHADOWTOWER_TARGET_FPS_MAX 360
 #define SHADOWTOWER_TARGET_FPS_DEFAULT 144
 
+/* Horizontal field of view across a 4:3 frame, degrees; the default is the
+ * game's own (projection distance 300 over a 160-pixel half width). */
+#define SHADOWTOWER_FOV_MIN 50
+#define SHADOWTOWER_FOV_MAX 110
+#define SHADOWTOWER_FOV_DEFAULT 56
+
+/* Fog and block-cull distance, percent of the game's own. */
+#define SHADOWTOWER_DRAW_DISTANCE_MIN 100
+#define SHADOWTOWER_DRAW_DISTANCE_MAX 400
+#define SHADOWTOWER_DRAW_DISTANCE_DEFAULT 100
+
 #define SHADOWTOWER_POSTFX_EXPOSURE_MIN -2.f
 #define SHADOWTOWER_POSTFX_EXPOSURE_MAX 2.f
 #define SHADOWTOWER_POSTFX_EXPOSURE_DEFAULT 0.f

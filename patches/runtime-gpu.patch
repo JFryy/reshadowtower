@@ -53,3 +53,15 @@
      }
 -    const int idx[3] = { i0, i1, i2 };
      int32_t fx[3], fy[3];
+@@ -3573,2 +3608,11 @@
+         }
++    }
++    /* Shadow Tower: perspective UVs on triangles that leave the game's draw
++     * area render as black holes in the native-wide margins, so those
++     * triangles keep the affine UVs the game drew them with. */
++    if (psx_ws_x_margin() > 0) {
++        for (int i = 0; i < 3; i++) {
++            const int32_t x = ((int32_t)(gp0_cmd_buf[indices[i]] << 21) >> 21) + draw_offset_x;
++            if (x < (int32_t)draw_area_left || x > (int32_t)draw_area_right) return;
++        }
+     }

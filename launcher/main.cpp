@@ -390,6 +390,16 @@ static void drawGraphicsPage(const PageContext& ui) {
         ui.dirty |= ImGui::Checkbox("Smooth fog", &settings.smoothFog);
         hint("Fades geometry into fog per pixel instead of per polygon.");
     }
+    if (ImGui::CollapsingHeader("View")) {
+        ImGui::SetNextItemWidth(230 * ui.uiScale);
+        ui.dirty |= ImGui::SliderInt("Field of view", &settings.fov, launcher::fovRange.low, launcher::fovRange.high,
+                                     "%d deg", ImGuiSliderFlags_AlwaysClamp);
+        hint("Horizontal field of view across a 4:3 frame. 56 is the original. Widescreen adds to it at the sides.");
+        ImGui::SetNextItemWidth(230 * ui.uiScale);
+        ui.dirty |= ImGui::SliderInt("Draw distance", &settings.drawDistance, launcher::drawDistanceRange.low,
+                                     launcher::drawDistanceRange.high, "%d%%", ImGuiSliderFlags_AlwaysClamp);
+        hint("How far fog and level culling reach, as a percent of the original. Higher values show more of each area and cost more guest CPU time.");
+    }
     if (ImGui::CollapsingHeader("Frame pacing")) {
         ImGui::BeginDisabled(settings.frameUnlock);
         ui.dirty |= ImGui::Checkbox("VSync", &settings.vsync);
