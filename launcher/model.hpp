@@ -40,6 +40,8 @@ template <typename T> struct Range {
 };
 inline constexpr Range<int> volumeRange{SHADOWTOWER_VOLUME_MIN, SHADOWTOWER_VOLUME_MAX, SHADOWTOWER_VOLUME_DEFAULT};
 inline constexpr Range<int> scaleRange{1, SHADOWTOWER_MAX_INTERNAL_SCALE, 3};
+inline constexpr Range<int> targetFpsRange{SHADOWTOWER_TARGET_FPS_MIN, SHADOWTOWER_TARGET_FPS_MAX,
+    SHADOWTOWER_TARGET_FPS_DEFAULT};
 inline constexpr int maxRenderScale = scaleRange.high;
 inline constexpr Range<double> mouseSensitivityRange{SHADOWTOWER_MOUSE_SENSITIVITY_MIN,
     SHADOWTOWER_MOUSE_SENSITIVITY_MAX, SHADOWTOWER_MOUSE_SENSITIVITY_DEFAULT};
@@ -125,6 +127,8 @@ struct Settings {
     bool widescreen = false, fullscreen = false, filter = true, geometry = true, perspective = true;
     bool vsync = true, lowLatency = true;
     bool depthBuffer = true, ambientOcclusion = true, pixelLighting = true, smoothFog = true;
+    bool frameUnlock = true, smoothCamera = true, smoothObjects = true;
+    int targetFps = targetFpsRange.fallback;
     double mouseSensitivity = mouseSensitivityRange.fallback;
     double stickSensitivity = stickSensitivityRange.fallback, stickDeadzone = stickDeadzoneRange.fallback;
     PostFx postFx = postFxPresetValues(PostFxPreset::subtle);
@@ -142,6 +146,8 @@ inline std::string invalidSetting(const Settings& s) {
     if (s.fmvFilter < 0 || s.fmvFilter >= static_cast<int>(fmvFilters.size()))
         return describe("FMV filtering", s.fmvFilter, 0, fmvFilters.size() - 1);
     if (!volumeRange.contains(s.volume)) return describe("Volume", s.volume, volumeRange.low, volumeRange.high);
+    if (!targetFpsRange.contains(s.targetFps))
+        return describe("Target frame rate", s.targetFps, targetFpsRange.low, targetFpsRange.high);
     const std::pair<const char*, std::pair<double, Range<double>>> doubles[] = {
         {"Mouse sensitivity", {s.mouseSensitivity, mouseSensitivityRange}},
         {"Stick sensitivity", {s.stickSensitivity, stickSensitivityRange}},
@@ -155,7 +161,7 @@ inline std::string invalidSetting(const Settings& s) {
     return {};
 }
 // Translate launcher preferences into overrides consumed by the game runtime.
-inline std::array<std::pair<std::string, std::string>, 13> gameEnvironment(const Settings& s) {
+inline std::array<std::pair<std::string, std::string>, 17> gameEnvironment(const Settings& s) {
     std::string postFx = "0";
     if (s.postFx.enabled) {
         std::ostringstream out;
@@ -168,7 +174,7 @@ inline std::array<std::pair<std::string, std::string>, 13> gameEnvironment(const
         postFx = out.str();
     }
     return {{{"SHADOWTOWER_VOLUME", std::to_string(s.volume)},
-             {"PSX_VSYNC", s.vsync ? "1" : "0"},
+             {"PSX_VSYNC", s.vsync && !s.frameUnlock ? "1" : "0"},
              {"PSX_LOW_LATENCY_INPUT", s.lowLatency ? "1" : "0"},
              {"SHADOWTOWER_MOUSE_SENSITIVITY", std::to_string(s.mouseSensitivity)},
              {"SHADOWTOWER_POSTFX", postFx},
@@ -179,7 +185,11 @@ inline std::array<std::pair<std::string, std::string>, 13> gameEnvironment(const
              {"SHADOWTOWER_DEPTH_BUFFER", s.depthBuffer ? "1" : "0"},
              {"SHADOWTOWER_AMBIENT_OCCLUSION", s.ambientOcclusion ? "1" : "0"},
              {"SHADOWTOWER_PIXEL_LIGHTING", s.pixelLighting ? "1" : "0"},
-             {"SHADOWTOWER_SMOOTH_FOG", s.smoothFog ? "1" : "0"}}};
+             {"SHADOWTOWER_SMOOTH_FOG", s.smoothFog ? "1" : "0"},
+             {"SHADOWTOWER_FRAME_UNLOCK", s.frameUnlock ? "1" : "0"},
+             {"SHADOWTOWER_TARGET_FPS", std::to_string(s.targetFps)},
+             {"SHADOWTOWER_SMOOTH_CAMERA", s.smoothCamera ? "1" : "0"},
+             {"SHADOWTOWER_SMOOTH_OBJECTS", s.smoothObjects ? "1" : "0"}}};
 }
 // Presets alter only graphics quality; custom values and display preferences survive.
 enum class GraphicsPreset { performance, balanced, quality, custom };
@@ -247,6 +257,11 @@ inline void overlay(Settings& s, const toml::value& root) {
         s.ambientOcclusion = toml::find_or(options, "ambient_occlusion", s.ambientOcclusion);
         s.pixelLighting = toml::find_or(options, "per_pixel_lighting", s.pixelLighting);
         s.smoothFog = toml::find_or(options, "smooth_fog", s.smoothFog);
+        s.frameUnlock = toml::find_or(options, "frame_unlock", s.frameUnlock);
+        s.smoothCamera = toml::find_or(options, "smooth_camera", s.smoothCamera);
+        s.smoothObjects = toml::find_or(options, "smooth_objects", s.smoothObjects);
+        const int targetFps = toml::find_or(options, "target_fps", s.targetFps);
+        if (targetFpsRange.contains(targetFps)) s.targetFps = targetFps;
         const auto ranged = [&](const char* key, double& target, const Range<double>& range) {
             const double value = toml::find_or(options, key, target);
             if (range.contains(value)) target = value;
@@ -338,6 +353,10 @@ inline void save(const fs::path& workspace, const Settings& s) {
     doc["launcher"]["ambient_occlusion"] = s.ambientOcclusion;
     doc["launcher"]["per_pixel_lighting"] = s.pixelLighting;
     doc["launcher"]["smooth_fog"] = s.smoothFog;
+    doc["launcher"]["frame_unlock"] = s.frameUnlock;
+    doc["launcher"]["target_fps"] = s.targetFps;
+    doc["launcher"]["smooth_camera"] = s.smoothCamera;
+    doc["launcher"]["smooth_objects"] = s.smoothObjects;
     doc["launcher"]["mouse_sensitivity"] = s.mouseSensitivity;
     doc["launcher"]["stick_sensitivity"] = s.stickSensitivity;
     doc["launcher"]["stick_deadzone"] = s.stickDeadzone;

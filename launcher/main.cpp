@@ -391,8 +391,21 @@ static void drawGraphicsPage(const PageContext& ui) {
         hint("Fades geometry into fog per pixel instead of per polygon.");
     }
     if (ImGui::CollapsingHeader("Frame pacing")) {
+        ImGui::BeginDisabled(settings.frameUnlock);
         ui.dirty |= ImGui::Checkbox("VSync", &settings.vsync);
-        hint("Synchronize presentation when the display timing supports it. The runtime uses its own pacer otherwise; disabling this does not unlock game speed.");
+        ImGui::EndDisabled();
+        hint("Synchronize presentation when the display timing supports it. The runtime uses its own pacer otherwise. Vsync does not change game speed; use Unlock frame rate for more frames.");
+        ui.dirty |= ImGui::Checkbox("Unlock frame rate", &settings.frameUnlock);
+        hint("Draws extra frames between the game's 20 Hz updates at the target rate below. Game speed, timers and audio stay stock. Turns driver vsync off while on.");
+        ImGui::BeginDisabled(!settings.frameUnlock);
+        ImGui::SetNextItemWidth(230 * ui.uiScale);
+        ui.dirty |= ImGui::SliderInt("Target frame rate", &settings.targetFps, launcher::targetFpsRange.low,
+                                     launcher::targetFpsRange.high, "%d fps", ImGuiSliderFlags_AlwaysClamp);
+        ui.dirty |= ImGui::Checkbox("Smooth camera", &settings.smoothCamera);
+        hint("Interpolates the view between game updates; mouse and stick look apply at once.");
+        ui.dirty |= ImGui::Checkbox("Smooth objects", &settings.smoothObjects);
+        hint("Interpolates monsters and objects between game updates.");
+        ImGui::EndDisabled();
         ui.dirty |= ImGui::Checkbox("Low-latency input", &settings.lowLatency);
         hint("Poll input closer to the game's input read to reduce delay.");
     }

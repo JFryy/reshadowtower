@@ -12,6 +12,7 @@ include(cmake/graphics.cmake)
 include(cmake/input.cmake)
 include(cmake/overrides.cmake)
 include(cmake/saves.cmake)
+include(cmake/cycles.cmake)
 
 set(SHADOWTOWER_AOT_SOURCE
     "${CMAKE_CURRENT_SOURCE_DIR}/generated/aot/overlays_static.c")
@@ -57,8 +58,11 @@ if(NOT PSX_SDL3)
       "Modern controls require SDL3. Configure with -DPSX_SDL_BACKEND=SDL3.")
 endif()
 configure_file(config.ini "${CMAKE_CURRENT_BINARY_DIR}/config.ini" COPYONLY)
-target_sources(psx-runtime PRIVATE src/modern_controls.c
-                                   src/function_overrides.c)
+target_sources(
+  psx-runtime PRIVATE src/modern_controls.c src/function_overrides.c
+                      src/frame_unlock.c "${SHADOWTOWER_INCLUDE_DIR}/psx_cyc.h")
+target_include_directories(psx-runtime BEFORE
+                           PRIVATE "${SHADOWTOWER_INCLUDE_DIR}")
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   # toml11 uses std::terminate without <exception>; libc++ no longer includes it
   # indirectly.

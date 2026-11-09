@@ -1,0 +1,23 @@
+# source-sha256: 5fe9bdc7b81491bf85ab0881fc24dce6f74ca79b75fa188a8133f9f63552aa42
+--- a/psxrecomp/runtime/src/psx_cycles.c
++++ b/psxrecomp/runtime/src/psx_cycles.c
+@@ -23,2 +23,9 @@
+ uint64_t psx_cycle_count = 0;
++uint32_t g_shadowtower_cycle_scale = 256u;
++uint32_t g_shadowtower_cycle_carry = 0u;
++
++/* Shadow Tower: GTE and multiply/divide latencies scale with CPU charges. */
++static uint32_t shadowtower_scaled_latency(uint32_t latency) {
++    return (uint32_t)(((uint64_t)latency * g_shadowtower_cycle_scale) >> 8);
++}
+ uint32_t g_psx_cyc_batch = 0;
+@@ -676,3 +683,3 @@
+ void psx_muldiv_set(CPUState* cpu, uint32_t latency) {
+-    cpu->muldiv_ts_done = psx_cycle_count + (uint64_t)latency;
++    cpu->muldiv_ts_done = psx_cycle_count + (uint64_t)shadowtower_scaled_latency(latency);
+ }
+@@ -766,3 +773,3 @@
+     }
+-    cpu->gte_ts_done = psx_cycle_count + (uint64_t)latency;
++    cpu->gte_ts_done = psx_cycle_count + (uint64_t)shadowtower_scaled_latency(latency);
+ }

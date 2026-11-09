@@ -30,11 +30,12 @@ IMGUI_FILES = (
 PROJECT_FILES = (
     "CMakeLists.txt", "game.toml", "config.ini", "VERSION", "LICENSE",
     "cmake/graphics.cmake", "cmake/input.cmake", "cmake/overrides.cmake", "cmake/recompiler_overrides.cmake",
-    "cmake/saves.cmake",
+    "cmake/saves.cmake", "cmake/cycles.cmake",
     "cmake/dependencies.cmake",
     "cmake/generate_codegen_hash.cmake",
     "cmake/dependencies.json", "cmake/dependencies/CMakeLists.txt", "tools/dependencies.py",
     "src/modern_controls.c", "src/modern_controls.h", "src/function_overrides.c", "src/function_overrides.h",
+    "src/frame_unlock.c", "src/frame_unlock.h", "src/frame_clock.h",
     "src/world_texture_filter.glsl",
     "src/post_processing.h", "src/post_processing_gl.h", "src/post_processing.glsl",
     "src/render_scale.h", "src/render_scale_gl.h", "src/settings_ranges.h",
@@ -46,6 +47,7 @@ PROJECT_FILES = (
     "patches/runtime-gpu.patch", "patches/runtime-settings.patch", "patches/runtime-software.patch",
     "patches/runtime-overrides.patch", "patches/runtime-overrides-interp.patch", "patches/recompiler-overrides.patch",
     "patches/runtime-memcard.patch", "patches/runtime-gte.patch",
+    "patches/runtime-cycle-charge.patch", "patches/runtime-cycles.patch",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",
     "assets/setup/boxart.tga", "assets/setup/music.wav",
 )

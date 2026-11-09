@@ -27,6 +27,7 @@ static float pending_x, pending_y;
 static float stick_sensitivity = (float)SHADOWTOWER_STICK_SENSITIVITY_DEFAULT; /* multiplier on STICK_RATE */
 static float stick_deadzone = (float)SHADOWTOWER_STICK_DEADZONE_DEFAULT; /* fraction of full deflection */
 static Uint64 last_look, last_sample, last_stick;
+static int applied_yaw, applied_pitch; /* angle change the last look update made */
 static SDL_Window *captured_window;
 static int mouse_was_down, suppress_click;
 
@@ -95,6 +96,7 @@ bool shadowtower_poll_event(SDL_Event *event) {
 static void update_camera(struct CPUState *cpu, uint32_t address) {
     (void)cpu;
     (void)address;
+    applied_yaw = applied_pitch = 0;
     if (!gameplay_image_loaded()) return;
     const Uint64 now = SDL_GetTicks();
     last_look = now;
@@ -117,11 +119,24 @@ static void update_camera(struct CPUState *cpu, uint32_t address) {
         return;
     }
     if (pitch > 2047) pitch -= 4096;
+    const int old_pitch = pitch;
     pitch += dy;
     if (pitch > PITCH_LIMIT) pitch = PITCH_LIMIT;
     if (pitch < -PITCH_LIMIT) pitch = -PITCH_LIMIT;
+    applied_yaw = -dx;
+    applied_pitch = pitch - old_pitch;
     psx_mod_write_half(PLAYER_YAW, (uint16_t)((yaw - dx) & ANGLE_MASK));
     psx_mod_write_half(PLAYER_PITCH, (uint16_t)(pitch & ANGLE_MASK));
+}
+
+void shadowtower_look_render_offset(float behind, int *yaw, int *pitch) {
+    *yaw = (int)lroundf(behind * (float)applied_yaw);
+    *pitch = (int)lroundf(behind * (float)applied_pitch);
+    SDL_Window *focus = SDL_GetKeyboardFocus();
+    if (!focus || (captured_window && focus != captured_window) || SDL_GetTicks() - last_sample > 100)
+        return;
+    *yaw -= (int)pending_x;
+    *pitch += (int)pending_y;
 }
 
 /* Radial deadzone with the remaining travel rescaled to 0..1. */
