@@ -41,6 +41,16 @@ sudo pacman -Syu --needed base-devel git python cmake ninja pkgconf sdl3 libglvn
 
 Windows source builds use [MSYS2 MINGW64](https://www.msys2.org/) and are unverified.
 
+On macOS (Apple Silicon), install the Xcode Command Line Tools (`xcode-select --install`)
+and [Homebrew](https://brew.sh/), then:
+
+```bash
+brew install git python cmake ninja pkgconf sdl3
+```
+
+macOS source builds are experimental (see #20). The game renders through Apple's
+OpenGL 4.1, which runs on Metal.
+
 Put your dump in `disc/` as `Shadow Tower (USA).bin` and `Shadow Tower (USA).cue`,
 then:
 
