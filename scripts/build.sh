@@ -34,7 +34,7 @@ cmake -S "$PSXRECOMP_ROOT/recompiler" -B build-recompiler -G Ninja \
 cmake --build build-recompiler --target psxrecomp-game psxrecomp-bios -j "$jobs"
 stage 4 "Generating game code"
 python3 "$PSXRECOMP_ROOT/psxrecomp_cli.py" generate \
-    --config game.toml --project-root . --disc "$disc" "${bios_args[@]}"
+    --config game.toml --project-root . --disc "$disc" ${bios_args[@]+"${bios_args[@]}"}
 PSXRECOMP_BIOS_BUILD="$PWD/build-recompiler" \
     "$PSXRECOMP_ROOT/tools/regen_bios.sh" --config bios/OpenBIOS.toml
 stage 5 "Generating overlay code"

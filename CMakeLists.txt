@@ -48,9 +48,9 @@ set_property(
   APPEND
   PROPERTY COMPILE_OPTIONS -O1)
 
-if(NOT CMAKE_SYSTEM_NAME MATCHES "^(Linux|Windows)$")
+if(NOT CMAKE_SYSTEM_NAME MATCHES "^(Linux|Windows|Darwin)$")
   message(
-    FATAL_ERROR "ReShadowTower currently supports Linux and Windows builds.")
+    FATAL_ERROR "ReShadowTower supports Linux, Windows and macOS builds.")
 endif()
 if(NOT PSX_SDL3)
   message(
@@ -63,7 +63,7 @@ target_sources(
                       src/frame_unlock.c "${SHADOWTOWER_INCLUDE_DIR}/psx_cyc.h")
 target_include_directories(psx-runtime BEFORE
                            PRIVATE "${SHADOWTOWER_INCLUDE_DIR}")
-if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+if((WIN32 OR APPLE) AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   # toml11 uses std::terminate without <exception>; libc++ no longer includes it
   # indirectly.
   set_property(
