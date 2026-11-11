@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "tests"))
 from dependencies import framework_root
 from prepare_source import prepare
-from test_world_texture_filter import _c_string
+from test_world_texture_filter import _c_string, _find_sdl3, _request_core_gl
 
 
 class PostFxParser(unittest.TestCase):
@@ -80,7 +80,7 @@ class PostFxGL(unittest.TestCase):
             from OpenGL import GL
         except ImportError as exc:
             raise unittest.SkipTest(f"GL context unavailable (PyOpenGL): {exc}")
-        library = ctypes.util.find_library("SDL3")
+        library = _find_sdl3()
         if not library:
             raise unittest.SkipTest("GL context unavailable (SDL3 library missing)")
         cls.sdl = ctypes.CDLL(library)
@@ -99,9 +99,7 @@ class PostFxGL(unittest.TestCase):
         sdl.SDL_GetError.restype = ctypes.c_char_p
         if not sdl.SDL_Init(0x20):
             raise unittest.SkipTest(f"GL context unavailable: {sdl.SDL_GetError().decode()}")
-        sdl.SDL_GL_SetAttribute(17, 3)
-        sdl.SDL_GL_SetAttribute(18, 3)
-        sdl.SDL_GL_SetAttribute(21, 1)
+        _request_core_gl(sdl)
         cls.window = sdl.SDL_CreateWindow(b"postfx-test", cls.W, cls.H, 0x2 | 0x8)
         if not cls.window:
             error = sdl.SDL_GetError().decode()
