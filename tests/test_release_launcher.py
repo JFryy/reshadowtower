@@ -19,7 +19,7 @@ class ReleaseLauncherTests(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        self.root = Path(directory.name)
+        self.root = Path(directory.name).resolve()  # macOS: /var is a symlink to /private/var
 
     def test_new_release_preserves_existing_saves_and_workspace(self):
         root = self.root

@@ -38,6 +38,30 @@ def _c_string(source: str, name: str) -> str:
     return "".join(ast.literal_eval(token) for token in tokens)
 
 
+def _find_sdl3() -> str | None:
+    """SDL3's shared library; find_library does not search Homebrew's prefix on macOS."""
+    library = ctypes.util.find_library("SDL3")
+    if library or sys.platform != "darwin":
+        return library
+    for prefix in ("/opt/homebrew/lib", "/usr/local/lib"):
+        candidate = Path(prefix) / "libSDL3.dylib"
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
+def _request_core_gl(sdl) -> None:
+    """Ask for an OpenGL 3.3 core context; macOS only grants one when it is forward-compatible."""
+    # SDL_GL_CONTEXT_{MAJOR,MINOR}_VERSION (17, 18) and SDL_GL_CONTEXT_PROFILE_MASK (20) = core.
+    # 21 is SDL_GL_SHARE_WITH_CURRENT_CONTEXT, not the profile.
+    sdl.SDL_GL_SetAttribute(17, 3)
+    sdl.SDL_GL_SetAttribute(18, 3)
+    sdl.SDL_GL_SetAttribute(20, 1)
+    if sys.platform == "darwin":
+        # SDL_GL_CONTEXT_FLAGS (19) = SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG.
+        sdl.SDL_GL_SetAttribute(19, 2)
+
+
 class TexturedShaderGL(unittest.TestCase):
     """GL context and renderer TEX program shared by the textured-shader tests."""
     W = H = 32
@@ -48,7 +72,7 @@ class TexturedShaderGL(unittest.TestCase):
             from OpenGL import GL
         except ImportError as exc:
             raise unittest.SkipTest(f"PyOpenGL unavailable: {exc}")
-        library = ctypes.util.find_library("SDL3")
+        library = _find_sdl3()
         if not library:
             raise unittest.SkipTest("SDL3 library unavailable")
         cls.sdl = ctypes.CDLL(library)
@@ -70,10 +94,7 @@ class TexturedShaderGL(unittest.TestCase):
         sdl.SDL_GetError.restype = ctypes.c_char_p
         if not sdl.SDL_Init(0x20):
             raise unittest.SkipTest(f"SDL video init failed: {sdl.SDL_GetError().decode()}")
-        # SDL_GL_CONTEXT_{MAJOR,MINOR}_VERSION and PROFILE_MASK (core).
-        sdl.SDL_GL_SetAttribute(17, 3)
-        sdl.SDL_GL_SetAttribute(18, 3)
-        sdl.SDL_GL_SetAttribute(21, 1)
+        _request_core_gl(sdl)
         cls.window = sdl.SDL_CreateWindow(b"shader-test", cls.W, cls.H, 0x2 | 0x8)
         if not cls.window:
             sdl.SDL_Quit()

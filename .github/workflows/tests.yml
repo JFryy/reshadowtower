@@ -108,3 +108,30 @@ jobs:
           test -s dist/package/payload/psxrecomp/runtime/runtime.cmake
           test -s dist/package/payload/psxrecomp/lib/recomp-net/CMakeLists.txt
           test -s dist/package/payload/psxrecomp/lib/retcomm-rbengine/CMakeLists.txt
+
+  macos:
+    name: macOS tests and launcher build
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: '3.12'
+      - name: Install build dependencies
+        run: brew install cmake ninja pkgconf sdl3 glslang
+      - name: Install locked Python dependencies
+        run: uv sync --locked
+      - name: Resolve pinned framework dependencies
+        run: uv run python tools/dependencies.py
+      - name: Build and test the launcher
+        run: |
+          cmake -S launcher -B build-launcher-ci -G Ninja -DBUILD_TESTING=ON \
+            -DSHADOWTOWER_WARNINGS_AS_ERRORS=ON \
+            -DPSXRECOMP_ROOT="$PWD/build-dependencies/_deps/psxrecomp-src"
+          cmake --build build-launcher-ci
+          ctest --test-dir build-launcher-ci --output-on-failure
+      - name: Run tests with required OpenGL coverage
+        run: uv run python tools/run_tests.py
