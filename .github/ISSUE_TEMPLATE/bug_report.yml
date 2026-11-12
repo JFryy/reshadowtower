@@ -84,7 +84,7 @@ body:
     attributes:
       label: Version
       description: Release version, or the output of `git rev-parse --short HEAD` for source builds.
-      placeholder: 0.2.0
+      placeholder: 0.3.0
     validations:
       required: true
   - type: input
