@@ -27,7 +27,7 @@ class SourceAdapterTests(unittest.TestCase):
 
     def test_title_runtime_honors_launcher_display_and_volume(self):
         source = (framework_root() / "runtime/src/main.cpp").read_text(encoding="utf-8-sig")
-        patched = apply_patch(source, (ROOT / "patches/runtime-input.patch").read_text())
+        patched = apply_patch(source, (ROOT / "patches/runtime-input.patch").read_text(encoding="utf-8"))
         self.assertIn("constexpr bool ws_offered = true;", patched)
         self.assertIn("constexpr bool ws_ultrawide_offered = true;", patched)
         self.assertIn('std::getenv("SHADOWTOWER_VOLUME")', patched)
@@ -42,7 +42,7 @@ class SourceAdapterTests(unittest.TestCase):
 
     def test_menu_stretch_is_applied_to_all_present_paths_but_not_movies(self):
         source = (framework_root() / "runtime/src/main.cpp").read_text(encoding="utf-8-sig")
-        patched = apply_patch(source, (ROOT / "patches/runtime-input.patch").read_text())
+        patched = apply_patch(source, (ROOT / "patches/runtime-input.patch").read_text(encoding="utf-8"))
         self.assertIn("const bool stretch_menu = g_ws_engaged && fmv_frame && !di.depth24 &&", patched)
         self.assertIn("g_video_aspect_num * 3 > g_video_aspect_den * 4 &&", patched)
         self.assertIn("!mdec_recently_active(30);", patched)
@@ -54,7 +54,7 @@ class SourceAdapterTests(unittest.TestCase):
         if not compiler:
             self.skipTest("C compiler unavailable")
         source = (framework_root() / "runtime/src/gpu.c").read_text(encoding="utf-8-sig")
-        patched = apply_patch(source, (ROOT / "patches/runtime-gpu.patch").read_text())
+        patched = apply_patch(source, (ROOT / "patches/runtime-gpu.patch").read_text(encoding="utf-8"))
         functions = []
         for name in ("shadowtower_menu_active", "ws_game_mode"):
             match = re.search(r"static int " + name + r"\(void\) \{.*?\n\}", patched, re.DOTALL)

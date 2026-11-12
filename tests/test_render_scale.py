@@ -174,11 +174,11 @@ int main(void) {
 ''')
 
     def test_source_caps(self):
-        patch = (ROOT / "patches/runtime-input.patch").read_text()
+        patch = (ROOT / "patches/runtime-input.patch").read_text(encoding="utf-8")
         self.assertGreaterEqual(patch.count("SHADOWTOWER_MAX_INTERNAL_SCALE"), 4)
         self.assertIn("640 * SHADOWTOWER_MAX_INTERNAL_SCALE", patch)
-        settings = (ROOT / "patches/runtime-settings.patch").read_text()
+        settings = (ROOT / "patches/runtime-settings.patch").read_text(encoding="utf-8")
         self.assertGreaterEqual(settings.count("SHADOWTOWER_MAX_INTERNAL_SCALE"), 2)
-        software = (ROOT / "patches/runtime-software.patch").read_text()
+        software = (ROOT / "patches/runtime-software.patch").read_text(encoding="utf-8")
         self.assertIn("if (scale > SHADOWTOWER_MAX_INTERNAL_SCALE) scale = SHADOWTOWER_MAX_INTERNAL_SCALE;", software)
         self.assertIn("host_osd_push", software)
