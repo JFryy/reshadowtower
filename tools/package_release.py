@@ -46,7 +46,7 @@ PROJECT_FILES = (
     "cmake/adapters.cmake", "patches/runtime-input.patch", "patches/runtime-graphics.patch",
     "patches/runtime-gpu.patch", "patches/runtime-settings.patch", "patches/runtime-software.patch",
     "patches/runtime-overrides.patch", "patches/runtime-overrides-interp.patch", "patches/recompiler-overrides.patch",
-    "patches/runtime-memcard.patch", "patches/runtime-gte.patch",
+    "patches/runtime-memcard.patch", "patches/runtime-gte.patch", "patches/runtime-pgxp.patch",
     "patches/runtime-cycle-charge.patch", "patches/runtime-cycles.patch",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",
     "assets/setup/boxart.tga", "assets/setup/music.wav",

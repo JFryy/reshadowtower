@@ -17,7 +17,7 @@ from prepare_source import apply_patch, prepare
 
 class SourceAdapterTests(unittest.TestCase):
     def test_title_patches_apply_to_pinned_sources(self):
-        for name in ("runtime-input", "runtime-graphics", "runtime-gpu", "runtime-gte", "runtime-settings", "runtime-software",
+        for name in ("runtime-input", "runtime-graphics", "runtime-gpu", "runtime-gte", "runtime-pgxp", "runtime-settings", "runtime-software",
                      "runtime-overrides", "runtime-overrides-interp", "runtime-memcard", "recompiler-overrides",
                      "runtime-cycle-charge", "runtime-cycles"):
             with self.subTest(patch=name):

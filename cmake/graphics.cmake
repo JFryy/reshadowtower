@@ -41,3 +41,10 @@ shadowtower_prepare("${SHADOWTOWER_GTE_SOURCE}"
 list(REMOVE_ITEM PSXRECOMP_RUNTIME_SOURCES
      "${PSXRECOMP_ROOT}/runtime/src/gte.cpp")
 list(APPEND PSXRECOMP_RUNTIME_SOURCES "${SHADOWTOWER_GTE_SOURCE}")
+
+set(SHADOWTOWER_PGXP_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/graphics/pgxp.cpp")
+shadowtower_prepare("${SHADOWTOWER_PGXP_SOURCE}"
+                    "${PSXRECOMP_ROOT}/runtime/src/pgxp.cpp" runtime-pgxp)
+list(REMOVE_ITEM PSXRECOMP_RUNTIME_SOURCES
+     "${PSXRECOMP_ROOT}/runtime/src/pgxp.cpp")
+list(APPEND PSXRECOMP_RUNTIME_SOURCES "${SHADOWTOWER_PGXP_SOURCE}")
