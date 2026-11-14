@@ -17,6 +17,7 @@
 #include "model.hpp"
 #include "artwork.hpp"
 #include "bindings.hpp"
+#include "keyboard.hpp"
 #include <filesystem>
 
 using launcher::Settings;
@@ -93,7 +94,7 @@ public:
     }
     // The worker uses copies of settings and bindings taken now, never the live UI state.
     void start(const std::string& action, const Settings& settings, const launcher::Bindings& bindings,
-               std::vector<std::string> args = {}) {
+               const launcher::Keyboard& keyboard, std::vector<std::string> args = {}) {
         if (worker_.joinable()) worker_.join();
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -101,9 +102,9 @@ public:
             completed_ = false;
             action_ = action;
         }
-        worker_ = std::thread([this, action, args = std::move(args), settings, bindings] {
+        worker_ = std::thread([this, action, args = std::move(args), settings, bindings, keyboard] {
             Result result;
-            try { result = perform(action, args, settings, bindings); }
+            try { result = perform(action, args, settings, bindings, keyboard); }
             catch (const std::exception& e) { result = {-1, e.what()}; }
             std::lock_guard<std::mutex> lock(mutex_);
             result_ = std::move(result);
@@ -121,7 +122,7 @@ public:
 
 private:
     Result perform(const std::string& action, const std::vector<std::string>& args, const Settings& settings,
-                   const launcher::Bindings& bindings) const {
+                   const launcher::Bindings& bindings, const launcher::Keyboard& keyboard) const {
         if (action == "setup") {
             std::vector<std::string> command{python_, backend_, "--workspace", workspace_};
             command.insert(command.end(), args.begin(), args.end());
@@ -133,11 +134,13 @@ private:
             if (!launcher::ready(workspacePath_)) return {-1, "Build is missing or changed"};
             launcher::save(workspacePath_, settings);
             launcher::saveBindings(workspacePath_, bindings);
+            launcher::saveKeyboard(workspacePath_, keyboard);
             return run({launcher::executable(workspacePath_).u8string(), "--no-launcher", "--game",
                         (workspacePath_ / "game.toml").u8string()}, workspace_, &settings);
         }
         launcher::save(workspacePath_, settings);
         launcher::saveBindings(workspacePath_, bindings);
+        launcher::saveKeyboard(workspacePath_, keyboard);
         return {0, "Settings saved"};
     }
 
@@ -463,13 +466,80 @@ static void drawBindings(const PageContext& ui, launcher::Bindings& bindings) {
     if (ImGui::Button("Restore default controller bindings")) { bindings = launcher::Bindings{}; ui.dirty = true; }
 }
 
-static void drawControlsPage(const PageContext& ui, launcher::Bindings& bindings) {
+// The keyboard row and slot waiting for a key press; row is -1 when idle.
+struct KeyCapture {
+    int row = -1;
+    int slot = 0;
+    std::string notice;
+};
+
+static void drawKeyboard(const PageContext& ui, launcher::Keyboard& keyboard, KeyCapture& capture) {
+    hint("Click a key, then press the new one. Right-click clears it. Escape cancels and stays reserved for releasing the mouse.");
+    if (ImGui::BeginTable("Keyboard", 3, ImGuiTableFlags_SizingStretchSame)) {
+        ImGui::TableSetupColumn("Action");
+        ImGui::TableSetupColumn("Key");
+        ImGui::TableSetupColumn("Second key");
+        ImGui::TableHeadersRow();
+        for (size_t row = 0; row < launcher::keyRowCount; ++row) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(launcher::keyRow(row).label);
+            for (int slot = 0; slot < 2; ++slot) {
+                ImGui::TableNextColumn();
+                ImGui::PushID(static_cast<int>(row) * 2 + slot);
+                const auto& key = slot ? keyboard.keys[row].alt : keyboard.keys[row].primary;
+                const bool listening = capture.row == static_cast<int>(row) && capture.slot == slot;
+                const std::string label = listening ? "Press a key..." : key.empty() ? "-" : key;
+                if (ImGui::Button(label.c_str(), ImVec2(-1, 0))) {
+                    capture.row = static_cast<int>(row);
+                    capture.slot = slot;
+                    capture.notice.clear();
+                }
+                if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+                    launcher::clearKey(keyboard, row, slot);
+                    capture.row = -1;
+                    ui.dirty = true;
+                }
+                ImGui::PopID();
+            }
+        }
+        ImGui::EndTable();
+    }
+    if (!capture.notice.empty()) ImGui::TextWrapped("%s", capture.notice.c_str());
+    ImGui::Spacing();
+    hint("While the mouse is captured in gameplay, its buttons press these PlayStation buttons.");
+    for (size_t row = 0; row < launcher::mouseRowCount; ++row) {
+        ImGui::PushID(static_cast<int>(row));
+        auto& button = keyboard.mouse[row];
+        const char* shown = "None";
+        for (const auto& choice : shadowtower_button_rows)
+            if (button == choice.key) shown = choice.label;
+        ImGui::SetNextItemWidth(230 * ui.uiScale);
+        if (ImGui::BeginCombo(shadowtower_mouse_rows[row].label, shown)) {
+            if (ImGui::Selectable("None", button.empty())) { button.clear(); ui.dirty = true; }
+            for (const auto& choice : shadowtower_button_rows) {
+                if (ImGui::Selectable(choice.label, button == choice.key)) { button = choice.key; ui.dirty = true; }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::PopID();
+    }
+    if (ImGui::Button("Restore default keys")) {
+        keyboard = launcher::defaultKeyboard();
+        capture = {};
+        ui.dirty = true;
+    }
+}
+
+static void drawControlsPage(const PageContext& ui, launcher::Bindings& bindings, launcher::Keyboard& keyboard,
+                             KeyCapture& capture) {
     auto& settings = ui.settings;
     ImGui::BeginDisabled(!ui.settingsLoaded);
     ImGui::TextUnformatted("Controls");
     hint("Keyboard and mouse, or a connected controller.");
     ImGui::Spacing();
-    ImGui::TextWrapped("W / S  Move forward / back\nA / D  Strafe\nE  Interact\nF  Attack\nTab  Open menu\nC  Back / cancel");
+    if (ImGui::CollapsingHeader("Keyboard and mouse buttons", ImGuiTreeNodeFlags_DefaultOpen))
+        drawKeyboard(ui, keyboard, capture);
     ImGui::Spacing();
     hint("Click the game window to capture the mouse. Escape releases it.");
     rangeSlider(ui, "Mouse sensitivity", settings.mouseSensitivity, launcher::mouseSensitivityRange, "%.2fx",
@@ -623,6 +693,8 @@ int main(int argc, char** argv) {
 
     Settings settings;
     launcher::Bindings bindings;
+    launcher::Keyboard keyboard = launcher::defaultKeyboard();
+    KeyCapture capture;
     std::string message;
     bool settingsLoaded = true;
     const auto workspacePath = std::filesystem::u8path(workspace);
@@ -630,6 +702,7 @@ int main(int argc, char** argv) {
         message = launcher::setAsideCorruptSettings(workspacePath);
         settings = launcher::load(workspacePath);
         bindings = launcher::loadBindings(workspacePath);
+        keyboard = launcher::loadKeyboard(workspacePath);
     }
     catch (const std::exception& e) {
         settingsLoaded = false;
@@ -652,7 +725,7 @@ int main(int argc, char** argv) {
         SetupProgress progress{workspacePath / "launcher-process.log", 0, 0, {}};
         const auto start = [&](const std::string& action, std::vector<std::string> args = {}) {
             if (action == "setup") progress.begin();
-            runner.start(action, settings, bindings, std::move(args));
+            runner.start(action, settings, bindings, keyboard, std::move(args));
         };
         while (running) {
             SDL_Event event;
@@ -662,6 +735,21 @@ int main(int argc, char** argv) {
                         if (dirty) confirmClose = true;
                         else running = false;
                     }
+                    continue;
+                }
+                // A key press while rebinding belongs to the binding, not to ImGui navigation.
+                if (capture.row >= 0 && event.type == SDL_EVENT_KEY_DOWN) {
+                    if (!event.key.repeat && event.key.scancode != SDL_SCANCODE_ESCAPE) {
+                        const char* name = SDL_GetScancodeName(event.key.scancode);
+                        if (*name) {
+                            capture.notice = launcher::assignKey(keyboard, static_cast<size_t>(capture.row),
+                                                                 capture.slot, name);
+                            dirty = true;
+                        } else {
+                            capture.notice = "That key has no name and cannot be bound.";
+                        }
+                    }
+                    if (!event.key.repeat) capture.row = -1;
                     continue;
                 }
                 ImGui_ImplSDL3_ProcessEvent(&event);
@@ -700,11 +788,12 @@ int main(int argc, char** argv) {
             ImGui::BeginChild("Content", ImVec2(0, -footerHeight), ImGuiChildFlags_Borders);
             ImGui::BeginDisabled(busy || form.dialogs != 0);
             const PageContext ui{settings, dirty, settingsLoaded, ready, uiScale};
+            if (page != 3) capture.row = -1;
             switch (page) {
             case 0: if (drawPlayPage(ui, artwork)) start("play"); break;
             case 1: drawGraphicsPage(ui); break;
             case 2: drawAudioPage(ui); break;
-            case 3: drawControlsPage(ui, bindings); break;
+            case 3: drawControlsPage(ui, bindings, keyboard, capture); break;
             default:
                 if (auto args = drawSetupPage(ui, form, window)) start("setup", std::move(*args));
                 break;

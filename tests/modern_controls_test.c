@@ -34,7 +34,43 @@ SDL_WindowID SDL_GetWindowID(SDL_Window *w) { return w == win ? 1 : 2; }
 const char *SDL_GetError(void) { return "fake"; }
 bool SDL_SetHint(const char *a, const char *b) { (void)a; (void)b; return true; }
 bool SDL_PollEvent(SDL_Event *e) { if (!event_available) return false; *e=event_value; event_available=false; return true; }
-uint16_t psx_keybinds_pad_word(const uint8_t *keys, int p) { pad_player=p; memcpy(pad_keys, keys, sizeof pad_keys); return pad_value; }
+/* A small framework keyboard: [player1] binds per button, applied by pad_word. */
+static const char *const button_names[] = {"up", "down", "left", "right", "cross", "circle", "square", "triangle",
+                                           "l1", "r1", "l2", "r2", "l3", "r3", "start", "select"};
+static const uint16_t stub_bits[] = {0x10, 0x40, 0x80, 0x20, 0x4000, 0x2000, 0x8000, 0x1000,
+                                     0x400, 0x800, 0x100, 0x200, 0x2, 0x4, 0x8, 0x1};
+SDL_Scancode bind[16][2];
+static const struct { const char *name; SDL_Scancode code; } key_names[] = {
+    {"A", SDL_SCANCODE_A}, {"C", SDL_SCANCODE_C}, {"D", SDL_SCANCODE_D}, {"E", SDL_SCANCODE_E},
+    {"F", SDL_SCANCODE_F}, {"Q", SDL_SCANCODE_Q}, {"R", SDL_SCANCODE_R}, {"S", SDL_SCANCODE_S},
+    {"T", SDL_SCANCODE_T}, {"W", SDL_SCANCODE_W}, {"X", SDL_SCANCODE_X}, {"Y", SDL_SCANCODE_Y},
+    {"Z", SDL_SCANCODE_Z}, {"Up", SDL_SCANCODE_UP}, {"Down", SDL_SCANCODE_DOWN}, {"Left", SDL_SCANCODE_LEFT},
+    {"Right", SDL_SCANCODE_RIGHT}, {"Return", SDL_SCANCODE_RETURN}, {"Tab", SDL_SCANCODE_TAB},
+    {"Right Shift", SDL_SCANCODE_RSHIFT},
+};
+SDL_Scancode SDL_GetScancodeFromName(const char *name) {
+    if (!name) return SDL_SCANCODE_UNKNOWN;
+    for (size_t i = 0; i < sizeof key_names / sizeof key_names[0]; ++i)
+        if (!strcmp(name, key_names[i].name)) return key_names[i].code;
+    return SDL_SCANCODE_UNKNOWN;
+}
+const char *SDL_GetBasePath(void) { const char *dir = getenv("KEYBINDS_DIR"); return dir ? dir : "/nonexistent/"; }
+char keybinds_dir[1024];
+void psx_keybinds_init(const char *path) { snprintf(keybinds_dir, sizeof keybinds_dir, "%s", path); }
+const char *psx_keybinds_button_name(int b) { return button_names[b]; }
+SDL_Scancode psx_keybinds_get_button(int p, int b) { (void)p; return bind[b][0]; }
+SDL_Scancode psx_keybinds_get_button_alt(int p, int b) { (void)p; return bind[b][1]; }
+void psx_keybinds_set_button(int p, int b, SDL_Scancode sc) { (void)p; bind[b][0] = sc; }
+void psx_keybinds_set_button_alt(int p, int b, SDL_Scancode sc) { (void)p; bind[b][1] = sc; }
+uint16_t psx_keybinds_pad_word(const uint8_t *keys, int p) {
+    pad_player=p;
+    uint16_t word = pad_value;
+    if (!keys) return word;
+    memcpy(pad_keys, keys, sizeof pad_keys);
+    for (int b = 0; b < 16; ++b)
+        if ((bind[b][0] && keys[bind[b][0]]) || (bind[b][1] && keys[bind[b][1]])) word &= (uint16_t)~stub_bits[b];
+    return word;
+}
 int wrong_code;
 uint32_t psx_mod_read_word(uint32_t a) { if (wrong_code && a==0x80041EA4) return 0xDEADBEEF; if (a==0x80041D4c) return 0x27BDFFE8; if (a==0x80041D50) return 0x3C02801D; if (a==0x80041EA4) return 0xA4C3027A; if (a==0x80042088) return 0xA6020278; return 0; }
 uint16_t psx_mod_read_half(uint32_t a) { return mem[(a-0x801991A0)/2]; }
@@ -44,8 +80,36 @@ bool psx_mod_register_function_entry_plugin(const char*a,uint32_t b,void(*c)(CPU
 #include "modern_controls.c"
 #define T(x) do { if (!(x)) { fprintf(stderr, "FAIL: %s\n", #x); return 1; } } while (0)
 static uint16_t poll(uint8_t *k, int p) { return shadowtower_pad_word(k,p); }
+
+/* KEYBINDS_DIR holds a keybinds.ini with a [shadowtower] section; [player1] stays as the framework read it. */
+static int custom_keybinds(uint8_t *keys) {
+    pad_value = 0xFFFF;
+    last_look = last_sample = ticks;
+    poll(keys, 1);
+    const char *dir = getenv("KEYBINDS_DIR");
+    T(dir && !strcmp(keybinds_dir, dir)); /* Framework reloads from the executable's directory. */
+    T(bind[0][0] == SDL_SCANCODE_UP && bind[7][0] == SDL_SCANCODE_A); /* No default layout over edits. */
+    keys[SDL_SCANCODE_T] = 1; /* strafe_left = T, Q */
+    T(poll(keys, 1) == (uint16_t)(0xFFFF & ~0x0400) && !pad_keys[SDL_SCANCODE_T]);
+    keys[SDL_SCANCODE_T] = 0;
+    keys[SDL_SCANCODE_D] = 1; /* Invalid strafe_right keeps D. */
+    T(poll(keys, 1) == (uint16_t)(0xFFFF & ~0x0800));
+    keys[SDL_SCANCODE_D] = 0;
+    mb = SDL_BUTTON_LMASK;
+    poll(keys, 1);
+    mb = 0;
+    poll(keys, 1);
+    mb = SDL_BUTTON_LMASK;
+    T(captured_window == win && poll(keys, 1) == 0xBFFF); /* mouse_left = cross */
+    mb = SDL_BUTTON_RMASK;
+    T(poll(keys, 1) == 0xFFFF); /* mouse_right = None */
+    return 0;
+}
+
 int main(void) {
     uint8_t keys[SDL_NUM_SCANCODES] = {0};
+    for (int b = 0; b < 16; ++b) bind[b][0] = key_from_name(shadowtower_button_rows[b].framework);
+    if (getenv("KEYBINDS_DIR")) return custom_keybinds(keys);
     const char *sensitivity_env = getenv("SHADOWTOWER_MOUSE_SENSITIVITY");
     T(sensitivity_env != NULL);
     const int custom = strcmp(sensitivity_env, "2") == 0;
@@ -62,9 +126,21 @@ int main(void) {
     T(memcmp(pad_keys, keys, sizeof keys) == 0);
     T(poll(keys, 1) == pad_value && pad_keys[100] == 1);
     pad_value = 0xFFFF;
+    keys[100] = 0;
+
+    /* An untouched framework [player1] gets the Shadow Tower layout. */
+    T(bind[0][0] == SDL_SCANCODE_W && bind[0][1] == SDL_SCANCODE_UP);
+    T(bind[4][0] == SDL_SCANCODE_E && bind[4][1] == SDL_SCANCODE_X);
+    T(bind[5][0] == SDL_SCANCODE_C && bind[7][0] == SDL_SCANCODE_F);
+    T(bind[9][0] == SDL_SCANCODE_UNKNOWN && bind[10][0] == SDL_SCANCODE_UNKNOWN);
+    T(bind[15][0] == SDL_SCANCODE_TAB && bind[15][1] == SDL_SCANCODE_RSHIFT);
+    keys[SDL_SCANCODE_E] = 1;
+    T(poll(keys, 1) == 0xBFFF);
+    keys[SDL_SCANCODE_E] = 0;
+
     keys[SDL_SCANCODE_W] = keys[SDL_SCANCODE_A] = 1;
     T(poll(keys, 1) == (uint16_t)(0xFFFF & ~0x0010 & ~0x0400));
-    T(!pad_keys[SDL_SCANCODE_W] && !pad_keys[SDL_SCANCODE_A]);
+    T(pad_keys[SDL_SCANCODE_W] && !pad_keys[SDL_SCANCODE_A]);
     last_look = 0;
     T(poll(keys, 1) == (uint16_t)(0xFFFF & ~0x0010 & ~0x0080));
     memset(keys, 0, sizeof keys);

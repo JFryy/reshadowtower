@@ -68,7 +68,7 @@ option(SHADOWTOWER_WARNINGS_AS_ERRORS
        "Build the launcher's own sources with -Wall -Wextra -Werror" OFF)
 if(SHADOWTOWER_WARNINGS_AS_ERRORS)
   set_source_files_properties(
-    main.cpp model_tests.cpp bindings_tests.cpp
+    main.cpp model_tests.cpp bindings_tests.cpp keyboard_tests.cpp
     PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror")
 endif()
 include(CTest)
@@ -85,4 +85,9 @@ if(BUILD_TESTING)
   add_executable(launcher-bindings-tests bindings_tests.cpp)
   target_compile_features(launcher-bindings-tests PRIVATE cxx_std_17)
   add_test(NAME launcher-bindings COMMAND launcher-bindings-tests)
+  add_executable(launcher-keyboard-tests keyboard_tests.cpp)
+  target_compile_features(launcher-keyboard-tests PRIVATE cxx_std_17)
+  target_include_directories(launcher-keyboard-tests
+                             PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+  add_test(NAME launcher-keyboard COMMAND launcher-keyboard-tests)
 endif()
