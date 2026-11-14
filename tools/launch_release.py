@@ -20,10 +20,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from release_common import file_hash
 
 
-def data_directory() -> Path:
+def data_directory(package: Path) -> Path:
     if os.name == "nt":
-        return Path(os.environ["LOCALAPPDATA"]) / "ReShadowTower"
+        return windows_data_directory(Path(os.environ["LOCALAPPDATA"]) / "ReShadowTower", package)
     return Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "reshadowtower"
+
+
+def windows_data_directory(legacy: Path, package: Path) -> Path:
+    """Keep existing installs on their saves; otherwise store data in the folder chosen in the installer."""
+    if legacy.exists():
+        return legacy
+    # The installer places each release in <chosen folder>\<version>.
+    return package.parent / "data"
 
 
 def verify_payload(payload: Path, hashes: dict[str, str]) -> None:
@@ -175,7 +183,7 @@ def run_launcher(package: Path, workspace: Path, env: dict[str, str],
 
 def main() -> int:
     package = Path(__file__).resolve().parent
-    data = data_directory()
+    data = data_directory(package)
     data.mkdir(parents=True, exist_ok=True)
     log_path = data / "launcher.log"
     with log_path.open("a", encoding="utf-8", buffering=1) as log:
