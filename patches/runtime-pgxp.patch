@@ -1,0 +1,43 @@
+# source-sha256: 8f0433bac9f1f80aec4e1d4658e29b6c39fe2dc3129738e58310d429a33c4226
+--- a/psxrecomp/runtime/src/pgxp.cpp
++++ b/psxrecomp/runtime/src/pgxp.cpp
+@@ -245,3 +245,18 @@
+     }
+-    default:                                   /* LB/LBU/LWL/LWR: untrackable */
++    case 0x22:                                 /* LWL                         */
++    case 0x26: {                               /* LWR                         */
++        /* LWL at byte 3 and LWR at byte 0 each load the whole aligned word,
++         * so they carry its shadow exactly like LW. Compilers emit this pair
++         * to copy 4-byte structs that are only 2-byte aligned. */
++        uint32_t full = f_op(instr) == 0x22 ? 3u : 0u;
++        PGXPValue *src = (addr & 3u) == full ? pgxp_ptr(addr) : nullptr;
++        if (src && src->gen == s_gen) {
++            pv_validate(src, value);
++            *dst = *src;
++        } else {
++            pv_reset(dst, value);
++        }
++        return;
++    }
++    default:                                   /* LB/LBU: untrackable         */
+         pv_reset(dst, value);
+@@ -297,3 +312,18 @@
+     }
+-    default:                                   /* SWL/SWR: forget the word    */
++    case 0x2A:                                 /* SWL                         */
++    case 0x2E: {                               /* SWR                         */
++        /* SWL at byte 3 and SWR at byte 0 each store the whole register, so
++         * they carry its shadow exactly like SW; a partial store forgets it. */
++        uint32_t full = f_op(instr) == 0x2A ? 3u : 0u;
++        if ((addr & 3u) != full) {
++            pv_kill(dst);
++        } else if (src && src->gen == s_gen) {
++            pv_validate(src, value);
++            *dst = *src;
++        } else {
++            pv_reset(dst, value);
++        }
++        return;
++    }
++    default:
+         pv_kill(dst);
