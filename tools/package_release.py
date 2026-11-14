@@ -34,7 +34,7 @@ PROJECT_FILES = (
     "cmake/dependencies.cmake",
     "cmake/generate_codegen_hash.cmake",
     "cmake/dependencies.json", "cmake/dependencies/CMakeLists.txt", "tools/dependencies.py",
-    "src/modern_controls.c", "src/modern_controls.h", "src/function_overrides.c", "src/function_overrides.h",
+    "src/modern_controls.c", "src/modern_controls.h", "src/keyboard_bindings.h", "src/function_overrides.c", "src/function_overrides.h",
     "src/frame_unlock.c", "src/frame_unlock.h", "src/frame_clock.h",
     "src/world_texture_filter.glsl",
     "src/post_processing.h", "src/post_processing_gl.h", "src/post_processing.glsl",
@@ -82,7 +82,8 @@ def source_files(framework: Path | None = None) -> Iterator[tuple[Path, Path]]:
     for patch in sorted((ROOT / "patches").glob("*.patch")):
         yield patch, patch.relative_to(ROOT)
     for name in ("CMakeLists.txt", "main.cpp", "model.hpp", "model_tests.cpp",
-                 "artwork.hpp", "bindings.hpp", "bindings_tests.cpp"):
+                 "artwork.hpp", "bindings.hpp", "bindings_tests.cpp",
+                 "keyboard.hpp", "keyboard_tests.cpp"):
         relative = Path("launcher") / name
         yield ROOT / relative, relative
     for source in framework_sources(framework):

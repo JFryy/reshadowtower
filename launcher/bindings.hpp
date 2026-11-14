@@ -64,16 +64,39 @@ inline int keyIndex(const std::string& line) {
     return -1;
 }
 inline std::vector<std::string> lines(const fs::path& file) {
+    const std::string error = "Cannot read " + file.filename().u8string();
     std::ifstream in(file, std::ios::binary);
     if (!in) {
-        if (fs::exists(file)) throw std::runtime_error("Cannot read input.ini");
+        if (fs::exists(file)) throw std::runtime_error(error);
         return {};
     }
     std::vector<std::string> result;
     std::string line;
     while (std::getline(in, line)) result.push_back(line);
-    if (!in.eof()) throw std::runtime_error("Cannot read input.ini");
+    if (!in.eof()) throw std::runtime_error(error);
     return result;
+}
+// Replace the file through a temporary so a failed write never leaves it truncated.
+inline void writeLines(const fs::path& file, const std::vector<std::string>& lines) {
+    fs::create_directories(file.parent_path());
+    auto temporary = file;
+    temporary += ".tmp";
+    try {
+        std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
+        out.exceptions(std::ios::badbit | std::ios::failbit);
+        for (const auto& line : lines) out << line << '\n';
+        out.close();
+#ifdef _WIN32
+        if (!MoveFileExW(temporary.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+            throw std::system_error(GetLastError(), std::system_category(), "Cannot replace " + file.filename().u8string());
+#else
+        fs::rename(temporary, file);
+#endif
+    } catch (...) {
+        std::error_code ignored;
+        fs::remove(temporary, ignored);
+        throw;
+    }
 }
 }
 inline Bindings loadBindings(const fs::path& workspace) {
@@ -126,24 +149,6 @@ inline void saveBindings(const fs::path& workspace, const Bindings& bindings) {
     for (size_t i = 0; i < found.size(); ++i)
         if (changed[i] && !found[i]) missing.push_back(std::string(bindingKeys[i]) + " = " + bindings.sources[i]);
     original.insert(original.begin() + static_cast<std::ptrdiff_t>(insertAt), missing.begin(), missing.end());
-    fs::create_directories(file.parent_path());
-    auto temporary = file;
-    temporary += ".tmp";
-    try {
-        std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
-        out.exceptions(std::ios::badbit | std::ios::failbit);
-        for (const auto& line : original) out << line << '\n';
-        out.close();
-#ifdef _WIN32
-        if (!MoveFileExW(temporary.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
-            throw std::system_error(GetLastError(), std::system_category(), "Cannot replace input.ini");
-#else
-        fs::rename(temporary, file);
-#endif
-    } catch (...) {
-        std::error_code ignored;
-        fs::remove(temporary, ignored);
-        throw;
-    }
+    binding_detail::writeLines(file, original);
 }
 }
