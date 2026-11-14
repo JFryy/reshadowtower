@@ -12,7 +12,8 @@ static void show_error(const wchar_t *reason, DWORD code)
 {
     wchar_t message[640];
     swprintf(message, sizeof(message) / sizeof(message[0]),
-             L"%ls (code %lu).\n\nCheck %%LOCALAPPDATA%%\\ReShadowTower\\launcher.log for details.",
+             L"%ls (code %lu).\n\nCheck launcher.log in the data folder inside the install folder "
+             L"(%%LOCALAPPDATA%%\\ReShadowTower for older installs) for details.",
              reason, (unsigned long)code);
     MessageBoxW(NULL, message, L"ReShadowTower", MB_OK | MB_ICONERROR);
 }

@@ -101,6 +101,13 @@ class ReleaseLauncherTests(unittest.TestCase):
             launcher.prepare_toolchain(source, root / "data", "a" * 64, {"compiler": "0" * 64})
         self.assertFalse((root / "data/toolchains" / ("a" * 64)).exists())
 
+    def test_windows_data_follows_chosen_install_folder(self):
+        package = self.root / "Games/ReShadowTower/1.0.0"
+        legacy = self.root / "LocalAppData/ReShadowTower"
+        self.assertEqual(launcher.windows_data_directory(legacy, package), self.root / "Games/ReShadowTower/data")
+        legacy.mkdir(parents=True)
+        self.assertEqual(launcher.windows_data_directory(legacy, package), legacy)
+
     def test_unlisted_payload_files_are_rejected(self):
         root = self.root
         (root / "unexpected.py").write_text("not in manifest")
