@@ -43,11 +43,7 @@ PROJECT_FILES = (
     "src/gte_lighting.h", "src/gte_lighting_capture.h", "src/gte_lighting.glsl", "src/lighting_gl.h",
     "seeds/ghidra_funcs.txt", "captures/overlay_captures.json", "tools/prepare_source.py", "tools/release_cli.py", "tools/generate_aot.py",
     "tools/release_common.py", "tools/launcher_backend.py",
-    "cmake/adapters.cmake", "patches/runtime-input.patch", "patches/runtime-graphics.patch",
-    "patches/runtime-gpu.patch", "patches/runtime-settings.patch", "patches/runtime-software.patch",
-    "patches/runtime-overrides.patch", "patches/runtime-overrides-interp.patch", "patches/recompiler-overrides.patch",
-    "patches/runtime-memcard.patch", "patches/runtime-gte.patch", "patches/runtime-pgxp.patch",
-    "patches/runtime-cycle-charge.patch", "patches/runtime-cycles.patch",
+    "cmake/adapters.cmake",
     "packaging/windows/CMakeLists.txt", "packaging/windows/launcher.c",
     "assets/setup/boxart.tga", "assets/setup/music.wav",
 )
@@ -83,6 +79,8 @@ def source_files(framework: Path | None = None) -> Iterator[tuple[Path, Path]]:
         framework = dependencies.framework_root()
     for name in PROJECT_FILES:
         yield ROOT / name, Path(name)
+    for patch in sorted((ROOT / "patches").glob("*.patch")):
+        yield patch, patch.relative_to(ROOT)
     for name in ("CMakeLists.txt", "main.cpp", "model.hpp", "model_tests.cpp",
                  "artwork.hpp", "bindings.hpp", "bindings_tests.cpp"):
         relative = Path("launcher") / name

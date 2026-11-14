@@ -17,13 +17,17 @@ from prepare_source import apply_patch, prepare
 
 class SourceAdapterTests(unittest.TestCase):
     def test_title_patches_apply_to_pinned_sources(self):
-        for name in ("runtime-input", "runtime-graphics", "runtime-gpu", "runtime-gte", "runtime-pgxp", "runtime-settings", "runtime-software",
-                     "runtime-overrides", "runtime-overrides-interp", "runtime-memcard", "recompiler-overrides",
-                     "runtime-cycle-charge", "runtime-cycles"):
-            with self.subTest(patch=name):
-                text = (ROOT / "patches" / f"{name}.patch").read_text(encoding="utf-8")
+        for path in sorted((ROOT / "patches").glob("*.patch")):
+            with self.subTest(patch=path.stem):
+                text = path.read_text(encoding="utf-8")
                 source = (framework_root() / text.splitlines()[1].removeprefix("--- a/psxrecomp/")).read_text(encoding="utf-8-sig")
                 self.assertNotEqual(apply_patch(source, text), source)
+
+    def test_every_title_patch_is_built(self):
+        cmake = "".join(path.read_text(encoding="utf-8") for path in sorted((ROOT / "cmake").glob("*.cmake")))
+        for path in sorted((ROOT / "patches").glob("*.patch")):
+            with self.subTest(patch=path.stem):
+                self.assertRegex(cmake, rf"(?<![\w-]){re.escape(path.stem)}(?![\w-])")
 
     def test_title_runtime_honors_launcher_display_and_volume(self):
         source = (framework_root() / "runtime/src/main.cpp").read_text(encoding="utf-8-sig")
