@@ -152,7 +152,7 @@ class DistributionTests(unittest.TestCase):
 
     def test_release_packages_every_build_input(self):
         root = package_release.ROOT
-        packaged = set(package_release.PROJECT_FILES)
+        packaged = {relative.as_posix() for _, relative in package_release.source_files()}
         included = re.findall(r"^include\((cmake/[^)]+\.cmake)\)", (root / "CMakeLists.txt").read_text(), re.MULTILINE)
         self.assertTrue(included)
         expected = set(included)
