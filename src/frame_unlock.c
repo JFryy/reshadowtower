@@ -44,6 +44,10 @@ extern uint32_t g_shadowtower_cycle_carry;
 #define DRAW_MODEL 0x80022678u /* draws one model at (pos, rot) for every entity pool */
 
 #define RENDER_COUNTER 0x8017BD50u /* u8: frames drawn this second */
+/* Hit and blind flashes: two channels the simulation accumulates into and RENDER draws once,
+ * then clears (0x8002181C, 0x800218D8). */
+#define FLASH_STATE 0x8017BD66u
+#define FLASH_STATE_BYTES 16u
 #define VBLANK_FLAG 0x8008820Cu    /* set by the root-counter callback, cleared by FRAME_WAIT */
 #define LOOP_FLAG 0x80199144u      /* u8 the main loop clears in a delay slot every iteration */
 #define AREA_LOADING 0x801B5920u   /* s16: nonzero while an area loads */
@@ -147,6 +151,8 @@ static ShadowTowerTickClock clock_state;
 static float phase;
 static uint64_t next_frame, last_loop_head, last_main_flip, last_present;
 static uint8_t saved_loop_flag;
+static uint8_t flash_state[FLASH_STATE_BYTES];
+static int flash_saved;
 static uint64_t anchor_wall_ns, anchor_guest;
 static uint64_t present_ns; /* this frame's present, excluded from its render time */
 
@@ -164,6 +170,7 @@ static uint64_t now_cycles(void) { return psx_get_cycle_count(); }
 
 static void reset_smoothing(void) {
     camera_valid = 0;
+    flash_saved = 0;
     memset(entities, 0, sizeof entities);
 }
 
@@ -381,6 +388,25 @@ static double host_lag(uint64_t now) {
 
 static int wait_for_frame(struct CPUState *cpu, uint32_t resume);
 
+static void read_bytes(uint32_t address, uint8_t *bytes, uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i) bytes[i] = psx_mod_read_byte(address + i);
+}
+
+static void write_bytes(uint32_t address, const uint8_t *bytes, uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i) psx_mod_write_byte(address + i, bytes[i]);
+}
+
+/* A tick's flash shows on every frame of the tick, as it stays on screen for the
+ * whole tick at stock pacing. */
+static void replay_flash(void) {
+    if (tick) {
+        read_bytes(FLASH_STATE, flash_state, FLASH_STATE_BYTES);
+        flash_saved = 1;
+    } else if (flash_saved) {
+        write_bytes(FLASH_STATE, flash_state, FLASH_STATE_BYTES);
+    }
+}
+
 static void render(struct CPUState *cpu) {
     if (!engaged || cpu->gpr[31] != RENDER_RETURN) {
         shadowtower_call_original(cpu, RENDER);
@@ -398,6 +424,7 @@ static void render(struct CPUState *cpu) {
     }
     phase = shadowtower_tick_phase(&clock_state, now);
     if (smooth_camera) camera_begin(cpu);
+    replay_flash();
     const uint8_t counter = psx_mod_read_byte(RENDER_COUNTER);
     draw_count = 0;
     in_main_render = 1;
