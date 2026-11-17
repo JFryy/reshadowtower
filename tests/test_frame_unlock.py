@@ -29,7 +29,7 @@ class FrameUnlockTests(unittest.TestCase):
         config = tomllib.loads((ROOT / "game.toml").read_text())
         listed = {int(value, 16) for value in config["data_shards"]["funcs"]}
         addresses = override_addresses()
-        self.assertEqual(len(addresses), 23)
+        self.assertEqual(len(addresses), 27)
         self.assertEqual(listed, addresses)
 
     def test_generated_code_has_entry_checks(self):

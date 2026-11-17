@@ -1,6 +1,6 @@
 /* Shadow Tower USA: widens what the game draws. A field-of-view setting, a
- * draw-distance setting, block culling that keeps up with a wider view, and
- * full-screen fills that reach the edges of the wide render surface. */
+ * draw-distance setting, block and polygon culling that keep up with a wider
+ * view, and full-screen fills that reach the edges of the wide render surface. */
 #include "function_overrides.h"
 #include "gameplay_image.h"
 #include "settings_ranges.h"
@@ -33,6 +33,13 @@ extern void gte_write_ctrl(struct CPUState *cpu, uint8_t reg, uint32_t val);
 #define ARM_RETURN_SECOND 0x80026D24u
 /* Draws a textured quad from (a0, a1) to (a2, a3); fades and flashes cover the screen with it. */
 #define SCREEN_FILL 0x80021518u
+/* Split a large near polygon of the level: two triangle forms and two quad forms. Each drops a
+ * polygon whose corners all lie outside the screen rectangle that a1 describes. */
+#define SPLIT_TRIANGLE_A 0x80075AC4u
+#define SPLIT_TRIANGLE_B 0x80075EC4u
+#define SPLIT_QUAD_A 0x80076364u
+#define SPLIT_QUAD_B 0x80076884u
+#define SPLIT_SCREEN_WIDTH 0x4u /* s32 in the a1 record; the level renderers set it to 320 */
 
 #define GTE_H 26
 #define STOCK_H 300
@@ -115,6 +122,21 @@ static void screen_fill(struct CPUState *cpu) {
     shadowtower_call_original(cpu, SCREEN_FILL);
 }
 
+/* The game rejects against its own 320 columns, which empties the wide surface's margins of
+ * near walls, floors and ceilings. */
+static void widen_split(struct CPUState *cpu, uint32_t address) {
+    const int margin = psx_ws_x_margin();
+    const uint32_t width = cpu->gpr[5] + SPLIT_SCREEN_WIDTH;
+    if (margin > 0 && psx_mod_read_word(width) == SCREEN_WIDTH)
+        psx_mod_write_word(width, (uint32_t)(SCREEN_WIDTH + 2 * margin));
+    shadowtower_call_original(cpu, address);
+}
+
+static void split_triangle_a(struct CPUState *cpu) { widen_split(cpu, SPLIT_TRIANGLE_A); }
+static void split_triangle_b(struct CPUState *cpu) { widen_split(cpu, SPLIT_TRIANGLE_B); }
+static void split_quad_a(struct CPUState *cpu) { widen_split(cpu, SPLIT_QUAD_A); }
+static void split_quad_b(struct CPUState *cpu) { widen_split(cpu, SPLIT_QUAD_B); }
+
 static int register_all(void) {
 #define FINGERPRINT SHADOWTOWER_GAMEPLAY_FINGERPRINT
     int ok = shadowtower_register_override("wide-view.light-refresh", LIGHT_REFRESH,
@@ -124,6 +146,14 @@ static int register_all(void) {
                                         FINGERPRINT(BLOCK_CULL, 0x27BDFFC8u, 0x3C040001u), block_cull);
     ok &= shadowtower_register_override("wide-view.screen-fill", SCREEN_FILL,
                                         FINGERPRINT(SCREEN_FILL, 0x27BDFFE0u, 0x0080C821u), screen_fill);
+    ok &= shadowtower_register_override("wide-view.split-triangle-a", SPLIT_TRIANGLE_A,
+                                        FINGERPRINT(SPLIT_TRIANGLE_A, 0x20A70060u, 0x24060000u), split_triangle_a);
+    ok &= shadowtower_register_override("wide-view.split-triangle-b", SPLIT_TRIANGLE_B,
+                                        FINGERPRINT(SPLIT_TRIANGLE_B, 0x20A70060u, 0x24060000u), split_triangle_b);
+    ok &= shadowtower_register_override("wide-view.split-quad-a", SPLIT_QUAD_A,
+                                        FINGERPRINT(SPLIT_QUAD_A, 0x20A70078u, 0x24060000u), split_quad_a);
+    ok &= shadowtower_register_override("wide-view.split-quad-b", SPLIT_QUAD_B,
+                                        FINGERPRINT(SPLIT_QUAD_B, 0x20A70078u, 0x24060000u), split_quad_b);
 #undef FINGERPRINT
     return ok;
 }
