@@ -44,6 +44,16 @@ class SourceAdapterTests(unittest.TestCase):
         self.assertFalse(config["widescreen"].get("full_2d", False))
         self.assertEqual(config["video"]["aspect_ratio"], "4:3")
 
+    def test_player_one_uses_a_connected_controller_in_release_builds(self):
+        # Without the framework launcher, a release runtime leaves Player 1 on the keyboard only.
+        source = (framework_root() / "runtime/src/main.cpp").read_text(encoding="utf-8-sig")
+        self.assertIn('player_device[i] = (i == 0) ? "keyboard" : "none";', source)
+        self.assertIn('d == "auto" || d == "gamepad" || d == "controller"', source)
+        loader = (framework_root() / "recompiler/src/config_loader.cpp").read_text(encoding="utf-8-sig")
+        self.assertIn('toml::find<std::string>(ct, "p1_device")', loader)
+        config = tomllib.loads((ROOT / "game.toml").read_text(encoding="utf-8"))
+        self.assertEqual(config["controller"]["p1_device"], "auto")
+
     def test_menu_stretch_is_applied_to_all_present_paths_but_not_movies(self):
         source = (framework_root() / "runtime/src/main.cpp").read_text(encoding="utf-8-sig")
         patched = apply_patch(source, (ROOT / "patches/runtime-input.patch").read_text(encoding="utf-8"))
