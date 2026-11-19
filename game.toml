@@ -82,6 +82,9 @@ native_wide = false
 
 [controller]
 default_mode = "digital"
+# Release builds otherwise route Player 1 to the keyboard alone and never open a
+# controller. "auto" takes the first connected pad; keyboard and mouse stay live.
+p1_device = "auto"
 
 # Disc identity checks for the framework's optional netplay support.
 # See psxrecomp/docs/NETPLAY.md.

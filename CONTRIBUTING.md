@@ -1,71 +1,34 @@
 # Contributing to ReShadowTower
 
-Thank you for helping improve ReShadowTower. This guide covers the rules on game
-data, how to build and test, and what to include in issues and pull requests.
-
 ## Game data
 
-ReShadowTower is built from each player's own disc. The repository and its
-releases must never contain copyrighted game data. Do not commit, attach, or
-link to:
+ReShadowTower is built from each player's own disc. Never commit, attach, or
+link to disc images or files extracted from them, generated game code
+(`generated/`), build output, BIOS dumps, memory cards, or save states.
+`captures/overlay_captures.json` is the one exception: it holds kernel RAM
+code that no disc file contains.
 
-- Disc images (BIN/CUE, ISO, CHD) or files extracted from them, including
-  `SLUS_008.63` and other executables.
-- Generated game code (`generated/`) or build output (`build-*/`, `out/`, `dist/`).
-  The one exception is `captures/overlay_captures.json`: kernel RAM code
-  recorded by `tools/coverage_report.py --update-captures`, which no disc
-  file contains.
-- BIOS dumps. The build uses the bundled OpenBIOS; no retail BIOS is needed.
-- Memory cards (`.mcd`, `.mcr`) or save states.
+## Building and testing
 
-Share reproduction steps, logs, and screenshots instead. Everything in `disc/`
-and `saves/` is ignored by Git; do not force-add it.
-
-## Building from source
-
-Follow [Build from source](README.md#build-from-source) in the README. In short,
-with the dependencies installed and your dump in `disc/`:
-
-```bash
-./scripts/build.sh
-./scripts/run.sh
-```
-
-The accepted disc images are listed in [`disc/README.md`](disc/README.md).
-Windows source builds use the MSYS2 MINGW64 shell.
-
-## Testing
-
-The test suite needs no disc, BIOS, or generated code:
+Build as described in [Build from source](README.md#build-from-source). The
+test suite needs no disc:
 
 ```bash
 python3 tools/run_tests.py
 ```
 
-Without a display, use Xvfb and Mesa:
+Without a display:
 
 ```bash
 SDL_VIDEODRIVER=x11 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a python3 tools/run_tests.py
 ```
 
-Skipped tests count as failures. Install the missing dependency rather than
-ignoring the skip.
-
-For gameplay changes, also test in-game with disposable saves and describe what
-you checked in the pull request.
+Skipped tests count as failures; install the missing dependency. For gameplay
+changes, also test in-game with disposable saves.
 
 ## Reporting bugs
 
-Use the bug report form. It asks for:
-
-- **Build:** release version, or `git rev-parse --short HEAD` for source builds.
-- **Platform:** OS, GPU and driver version, and whether Windows results come
-  from native Windows or Wine.
-- **Settings:** your `settings.toml` and `input.ini` if relevant.
-- **Save location** and whether the problem reproduces with a new save.
-- **Logs** and steps to reproduce.
-
-File locations:
+Use the bug report form. Logs and settings are here:
 
 | | Packaged (Linux) | Packaged (Windows) | Source build |
 | --- | --- | --- | --- |
@@ -78,24 +41,14 @@ On Linux, `$XDG_DATA_HOME` replaces `~/.local/share` when set.
 
 ## Pull requests
 
-- Keep each pull request focused on one change, and link the issue it addresses
-  (`Closes #123`).
-- Explain what changed and why, and how you validated it, including any manual
-  gameplay testing and remaining gaps.
-- Run `python3 tools/run_tests.py` before opening the pull request. CI also
-  builds and tests pull requests on Linux and Windows.
-- Match the style of the surrounding code.
-- Keep PSXRecomp framework changes separate from title-specific code. Framework
-  changes are carried as patches in `patches/*.patch`, applied at build time by
-  `tools/prepare_source.py` to the revision pinned in `cmake/dependencies.json`
-  (sha256-checked, exact context, no fuzz) and wired in through `cmake/*.cmake`
-  (see `shadowtower_prepare` in `cmake/adapters.cmake`). When bumping a pin,
-  regenerate the affected patches (the `# source-sha256:` line and hunks) and run
-  `tests/test_source_adapters.py`. Do not rely on changes that exist only in a
-  local `PSXRECOMP_ROOT` override.
+- One change per pull request, linked to its issue (`Closes #123`).
+- Say what changed, why, and how you tested it.
+- Run `python3 tools/run_tests.py` first.
+- Framework changes go in `patches/*.patch` against the revision pinned in
+  `cmake/dependencies.json`, wired in through `cmake/*.cmake`. When bumping a
+  pin, regenerate the affected patches and run `tests/test_source_adapters.py`.
 
 ## License
 
-By contributing, you agree that your contribution is licensed under the
-repository's [LICENSE](LICENSE). The PSXRecomp framework remains under its own
-noncommercial license.
+Contributions are licensed under the repository's [LICENSE](LICENSE). The
+PSXRecomp framework remains under its own noncommercial license.
