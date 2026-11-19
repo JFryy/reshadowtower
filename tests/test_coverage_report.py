@@ -129,7 +129,7 @@ class UpdateCaptureTests(unittest.TestCase):
                                        capture(0x801EB000, [0x801ED6E4])]))
             summary = cr.update_captures([run, root / "absent.json"], committed, root / "vault")
             self.assertIn("+1 variant(s)", summary)
-            records = json.loads(committed.read_text())
+            records = json.loads(committed.read_text(encoding="utf-8"))
             self.assertEqual([r["load_addr"] for r in records], ["0x80002000", "0x8000D000"])
             self.assertEqual(records[0]["executed_pcs"], ["0x80002818", "0x80002924"])
 

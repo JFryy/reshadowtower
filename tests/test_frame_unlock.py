@@ -12,7 +12,7 @@ SOURCE = ROOT / "src/frame_unlock.c"
 
 def override_addresses():
     """Every guest address src/frame_unlock.c registers an override for."""
-    source = SOURCE.read_text()
+    source = SOURCE.read_text(encoding="utf-8")
     defines = {name: int(value, 16) for name, value in re.findall(r"#define (\w+) (0x[0-9A-Fa-f]+)u", source)}
     names = re.findall(r'shadowtower_register_override\("[^"]+", (\w+),', source)
     addresses = {defines[name] for name in names}
@@ -23,7 +23,7 @@ def override_addresses():
 
 class FrameUnlockTests(unittest.TestCase):
     def test_game_toml_lists_every_override(self):
-        config = tomllib.loads((ROOT / "game.toml").read_text())
+        config = tomllib.loads((ROOT / "game.toml").read_text(encoding="utf-8"))
         listed = {int(value, 16) for value in config["data_shards"]["funcs"]}
         addresses = override_addresses()
         self.assertEqual(len(addresses), 17)

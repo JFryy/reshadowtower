@@ -9,12 +9,12 @@ LOOK_UPDATE = 0x80041D4C
 
 class LookHookTests(unittest.TestCase):
     def test_game_toml_lists_look_entry(self):
-        config = tomllib.loads((ROOT / "game.toml").read_text())
+        config = tomllib.loads((ROOT / "game.toml").read_text(encoding="utf-8"))
         funcs = config["recompiler"]["mod_function_entry_funcs"]
         self.assertIn("0x80041D4C", [f.upper().replace("0X", "0x") for f in funcs])
 
     def test_source_registers_same_address(self):
-        source = (ROOT / "src/modern_controls.c").read_text()
+        source = (ROOT / "src/modern_controls.c").read_text(encoding="utf-8")
         match = re.search(r"#define LOOK_UPDATE (0x[0-9A-Fa-f]+)u", source)
         self.assertIsNotNone(match)
         self.assertEqual(int(match.group(1), 16), LOOK_UPDATE)
