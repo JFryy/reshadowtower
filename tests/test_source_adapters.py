@@ -35,10 +35,10 @@ class SourceAdapterTests(unittest.TestCase):
         self.assertIn("constexpr bool ws_offered = true;", patched)
         self.assertIn("constexpr bool ws_ultrawide_offered = true;", patched)
         self.assertIn('std::getenv("SHADOWTOWER_VOLUME")', patched)
-        self.assertIn('aspect_ratio = "4:3"', (ROOT / "game.toml").read_text())
+        self.assertIn('aspect_ratio = "4:3"', (ROOT / "game.toml").read_text(encoding="utf-8"))
 
     def test_widescreen_recognizes_3d_gameplay_without_forcing_2d_geometry(self):
-        config = tomllib.loads((ROOT / "game.toml").read_text())
+        config = tomllib.loads((ROOT / "game.toml").read_text(encoding="utf-8"))
         self.assertTrue(config["widescreen"]["gte_game_mode"])
         self.assertFalse(config["widescreen"].get("native_wide", True))
         self.assertFalse(config["widescreen"].get("full_2d", False))

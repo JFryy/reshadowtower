@@ -130,7 +130,7 @@ class DistributionTests(unittest.TestCase):
 
     def test_launcher_keeps_fixed_cover_and_retro_font(self):
         root = package_release.ROOT
-        source = (root / "launcher/main.cpp").read_text()
+        source = (root / "launcher/main.cpp").read_text(encoding="utf-8")
         self.assertIn('workspacePath / "assets/setup/boxart.tga"', source)
         self.assertIn("AddFontDefault(&fontConfig)", source)
         self.assertNotIn("Choose artwork", source)
@@ -140,7 +140,7 @@ class DistributionTests(unittest.TestCase):
     def test_native_build_explicitly_disables_upstream_ui_without_submodule(self):
         root = package_release.ROOT
         self.assertFalse((root / ".gitmodules").exists())
-        cmake = (root / "CMakeLists.txt").read_text()
+        cmake = (root / "CMakeLists.txt").read_text(encoding="utf-8")
         match = re.search(r"set\(\s*PSX_RECOMP_UI\s+OFF\s+CACHE\s+BOOL", cmake)
         self.assertIsNotNone(match)
         disable = match.start()
@@ -153,7 +153,7 @@ class DistributionTests(unittest.TestCase):
     def test_release_packages_every_build_input(self):
         root = package_release.ROOT
         packaged = {relative.as_posix() for _, relative in package_release.source_files()}
-        included = re.findall(r"^include\((cmake/[^)]+\.cmake)\)", (root / "CMakeLists.txt").read_text(), re.MULTILINE)
+        included = re.findall(r"^include\((cmake/[^)]+\.cmake)\)", (root / "CMakeLists.txt").read_text(encoding="utf-8"), re.MULTILINE)
         self.assertTrue(included)
         expected = set(included)
         expected |= {path.relative_to(root).as_posix() for path in (root / "patches").glob("*.patch")}
