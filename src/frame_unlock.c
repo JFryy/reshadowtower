@@ -255,6 +255,7 @@ static void begin_iteration(void) {
     last_loop_head = now;
     seen = 0;
     tick = shadowtower_tick_due(&clock_state, now);
+    if (tick) shadowtower_look_begin_tick();
     if (psx_mod_read_half(AREA_LOADING)) reset_smoothing();
     if (!tick) saved_loop_flag = psx_mod_read_byte(LOOP_FLAG);
     ++stats.iterations;

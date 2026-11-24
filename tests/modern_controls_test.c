@@ -294,6 +294,21 @@ int main(void) {
     poll(keys, 1);
     T(fabsf(pending_x - (2 * full_step + 10 * mouse_sensitivity)) < 0.01f);
 
+    /* A tick that skips the look routine (door, shop, cutscene) draws no look offset. */
+    int offset_yaw, offset_pitch;
+    pending_x = 8;
+    pending_y = 0;
+    mem[0] = mem[1] = 0;
+    shadowtower_look_begin_tick();
+    update_camera(NULL, 0);
+    pending_x = 6;
+    shadowtower_look_render_offset(0.5f, &offset_yaw, &offset_pitch);
+    T(offset_yaw == -10 && offset_pitch == 0); /* half of the applied -8, plus the pending 6 */
+    shadowtower_look_begin_tick();
+    shadowtower_look_render_offset(0.5f, &offset_yaw, &offset_pitch);
+    T(offset_yaw == 0 && offset_pitch == 0);
+    pending_x = 0;
+
     /* A foreign executable at the hook addresses disables look and logs once. */
     wrong_code = 1;
     pending_x = 5;

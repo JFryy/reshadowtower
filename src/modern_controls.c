@@ -29,6 +29,7 @@ static float stick_sensitivity = (float)SHADOWTOWER_STICK_SENSITIVITY_DEFAULT; /
 static float stick_deadzone = (float)SHADOWTOWER_STICK_DEADZONE_DEFAULT; /* fraction of full deflection */
 static Uint64 last_look, last_sample, last_stick;
 static int applied_yaw, applied_pitch; /* angle change the last look update made */
+static int look_ran; /* the game ran its look routine on the latest tick */
 static SDL_Window *captured_window;
 static int mouse_was_down, suppress_click;
 
@@ -110,6 +111,7 @@ static void update_camera(struct CPUState *cpu, uint32_t address) {
     (void)address;
     applied_yaw = applied_pitch = 0;
     if (!gameplay_image_loaded()) return;
+    look_ran = 1;
     const Uint64 now = SDL_GetTicks();
     last_look = now;
     SDL_Window *focus = SDL_GetKeyboardFocus();
@@ -141,7 +143,15 @@ static void update_camera(struct CPUState *cpu, uint32_t address) {
     psx_mod_write_half(PLAYER_PITCH, (uint16_t)(pitch & ANGLE_MASK));
 }
 
+void shadowtower_look_begin_tick(void) {
+    look_ran = 0;
+    applied_yaw = applied_pitch = 0;
+}
+
 void shadowtower_look_render_offset(float behind, int *yaw, int *pitch) {
+    *yaw = *pitch = 0;
+    /* A door, shop or cutscene skips the look routine: the camera is the game's alone. */
+    if (!look_ran) return;
     *yaw = (int)lroundf(behind * (float)applied_yaw);
     *pitch = (int)lroundf(behind * (float)applied_pitch);
     SDL_Window *focus = SDL_GetKeyboardFocus();
